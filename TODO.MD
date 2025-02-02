@@ -1,0 +1,2 @@
+- First screen with Play and Exit buttons, before the game starts. Can be navigated with keyboard as well as mouse.
+- Game over screen with selection of new game or exit, also navigable with keyboard and mouse.
