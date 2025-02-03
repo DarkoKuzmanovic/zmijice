@@ -1,4 +1,12 @@
 function love.load()
+    -- Initialize high scores table
+    highScores = loadHighScores()
+
+    -- Load sound effects
+    sounds = {
+        eat = love.audio.newSource("eat.wav", "static")
+    }
+
     -- Initialize game state
     game = {
         grid_size = 20,
@@ -15,7 +23,14 @@ function love.load()
         over = false,      -- game over flag
         arrowHoldTime = 0, -- track how long an arrow key is held
         state = "menu",    -- Start in the menu state
-        menuSelection = 1  -- New: default active menu option is 1
+        menuSelection = 1,  -- New: default active menu option is 1
+        nameEntry = {      -- New: for high score name entry
+            active = false,
+            name = "AAA",
+            position = 1
+        },
+        mouseX = 0,        -- Track mouse position
+        mouseY = 0
     }
 
     -- Spawn food only when the game starts running
@@ -23,10 +38,10 @@ function love.load()
 
     -- Load and setup CRT shader
     shader = love.graphics.newShader([[
-        extern vec2 screen = vec2(800.0, 600.0);
-        extern float curvature = 4.0;
-        extern float scanlines = 800.0;
-        extern float vignette_intensity = 0.2;
+        extern vec2 screen;
+        extern float curvature;
+        extern float scanlines;
+        extern float vignette_intensity;
 
         vec2 curve(vec2 uv)
         {
@@ -41,27 +56,28 @@ function love.load()
 
         vec4 effect(vec4 color, Image tex, vec2 uv, vec2 px)
         {
-            // Apply screen curvature
             vec2 curved_uv = curve(uv);
 
-            // Check if we're outside the screen
             if (curved_uv.x < 0.0 || curved_uv.x > 1.0 || curved_uv.y < 0.0 || curved_uv.y > 1.0)
                 return vec4(0.0, 0.0, 0.0, 1.0);
 
-            // Sample the texture
             vec4 texcolor = Texel(tex, curved_uv);
 
-            // Apply scanlines
-            float scanline = sin(curved_uv.y * scanlines) * 0.04;
+            float scanline = sin(curved_uv.y * scanlines) * 0.02;
             texcolor -= scanline;
 
-            // Apply vignette
             float vignette = length(vec2(0.5, 0.5) - curved_uv) * vignette_intensity;
             texcolor -= vignette;
 
             return texcolor * color;
         }
     ]])
+
+    -- Set shader variables
+    shader:send('screen', {love.graphics.getWidth(), love.graphics.getHeight()})
+    shader:send('curvature', 10.0)
+    shader:send('scanlines', 800.0)
+    shader:send('vignette_intensity', 0.1)
 
     -- Create canvas for post-processing
     canvas = love.graphics.newCanvas()
@@ -74,6 +90,9 @@ function love.load()
 end
 
 function love.update(dt)
+    -- Update mouse position
+    game.mouseX, game.mouseY = love.mouse.getPosition()
+
     if game.state ~= "running" then
         return  -- Only run game logic when state is "running"
     end
@@ -81,7 +100,7 @@ function love.update(dt)
     game.timer = game.timer + dt
 
     -- Track how long any arrow key is held.
-    if love.keyboard.isDown("up", "down", "left", "right") then
+    if love.keyboard.isDown("up", "down", "left", "right", "w", "a", "s", "d") then
         game.arrowHoldTime = game.arrowHoldTime + dt
     else
         game.arrowHoldTime = 0
@@ -118,163 +137,300 @@ end
 
 function love.draw()
     if game.state == "menu" then
-        -- Draw the menu screen background
-        love.graphics.setBackgroundColor(0.1, 0.1, 0.1, 1)
-        love.graphics.clear(0.1, 0.1, 0.1, 1)
+        -- Draw the menu screen with LCD style
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
 
         -- Draw Title
         love.graphics.setFont(gameOverFont)
-        local title = "Zmijice"
+        local title = "ZMIJICE"
+        local titleWidth = gameOverFont:getWidth(title)
+        local titleX = (love.graphics.getWidth() - titleWidth) / 2
+        local titleY = love.graphics.getHeight() / 4
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.print(title, titleX, titleY)
+
+        -- Draw buttons with LCD style
+        local centerX = love.graphics.getWidth() / 2
+        local btnY = titleY + gameOverFont:getHeight() + 40
+        local btnSpacing = 50
+        local btnWidth = 140
+        local btnHeight = 40
+
+        local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
+        local scoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
+        local exitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
+
+        love.graphics.setFont(scoreFont)
+
+        -- Helper function to check if mouse is over a button
+        local function isMouseOver(btn)
+            return game.mouseX >= btn.x and game.mouseX <= btn.x + btn.width and
+                   game.mouseY >= btn.y and game.mouseY <= btn.y + btn.height
+        end
+
+        -- Draw button backgrounds and borders
+        local buttons = {
+            {btn = playBtn, text = "PLAY", selected = game.menuSelection == 1},
+            {btn = scoresBtn, text = "HIGH SCORES", selected = game.menuSelection == 2},
+            {btn = exitBtn, text = "EXIT", selected = game.menuSelection == 3}
+        }
+
+        for _, button in ipairs(buttons) do
+            -- Draw darker background for selected button or when hovered
+            love.graphics.setColor(0.2, 0.2, 0.2)
+            if button.selected or isMouseOver(button.btn) then
+                love.graphics.rectangle('fill', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
+                love.graphics.setColor(0.75, 0.85, 0.65) -- LCD green for text
+            else
+                love.graphics.rectangle('line', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
+                love.graphics.setColor(0.2, 0.2, 0.2) -- Dark for text
+            end
+
+            local textWidth = scoreFont:getWidth(button.text)
+            local textX = button.btn.x + (button.btn.width - textWidth) / 2
+            local textY = button.btn.y + (button.btn.height - scoreFont:getHeight()) / 2
+            love.graphics.print(button.text, textX, textY)
+        end
+
+        -- Draw copyright notice
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        local copyright = "(C) 2024 ZMIJICE v0.9.0 - Darko Kuzmanovic"
+        local copyrightWidth = scoreFont:getWidth(copyright)
+        local copyrightX = (love.graphics.getWidth() - copyrightWidth) / 2
+        local copyrightY = love.graphics.getHeight() - scoreFont:getHeight() - 20
+        love.graphics.print(copyright, copyrightX, copyrightY)
+
+        -- Apply shader effects
+        love.graphics.setCanvas()
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setShader(shader)
+        love.graphics.draw(canvas)
+        love.graphics.setShader()
+        return
+
+    elseif game.state == "highscores" then
+        -- Draw high scores with LCD style
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
+
+        -- Draw Title
+        love.graphics.setFont(gameOverFont)
+        local title = "HIGH SCORES"
+        local titleWidth = gameOverFont:getWidth(title)
+        local titleX = (love.graphics.getWidth() - titleWidth) / 2
+        local titleY = 50
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.print(title, titleX, titleY)
+
+        -- Draw scores
+        love.graphics.setFont(scoreFont)
+        local startY = titleY + gameOverFont:getHeight() + 20
+        local spacing = 30
+
+        for i, score in ipairs(highScores) do
+            local text = string.format("%2d. %s %5d", i, score.name, score.score)
+            local textWidth = scoreFont:getWidth(text)
+            local x = (love.graphics.getWidth() - textWidth) / 2
+            love.graphics.print(text, x, startY + (i-1) * spacing)
+        end
+
+        -- Draw "Back" button with LCD style
+        local backBtn = {
+            x = (love.graphics.getWidth() - 140) / 2,
+            y = startY + 11 * spacing,
+            width = 140,
+            height = 40
+        }
+
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", backBtn.x, backBtn.y, backBtn.width, backBtn.height, 4, 4)
+        love.graphics.setColor(0.75, 0.85, 0.65)
+        local backText = "BACK"
+        local backTextX = backBtn.x + (backBtn.width - scoreFont:getWidth(backText)) / 2
+        local backTextY = backBtn.y + (backBtn.height - scoreFont:getHeight()) / 2
+        love.graphics.print(backText, backTextX, backTextY)
+
+        -- Apply shader effects
+        love.graphics.setCanvas()
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setShader(shader)
+        love.graphics.draw(canvas)
+        love.graphics.setShader()
+        return
+
+    elseif game.nameEntry.active then
+        -- Draw name entry with LCD style
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
+
+        -- Draw Title
+        love.graphics.setFont(gameOverFont)
+        local title = "NEW HIGH SCORE!"
         local titleWidth = gameOverFont:getWidth(title)
         local titleX = (love.graphics.getWidth() - titleWidth) / 2
         local titleY = love.graphics.getHeight() / 3
-        love.graphics.setColor(1, 1, 1)
+        love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.print(title, titleX, titleY)
 
-        -- Draw buttons for Play and Exit
-        local centerX = love.graphics.getWidth() / 2
-        local btnY = titleY + gameOverFont:getHeight() + 40
-
-        local playBtn = {x = centerX - 120, y = btnY, width = 100, height = 40}
-        local exitBtn = {x = centerX + 20, y = btnY, width = 100, height = 40}
-
+        -- Draw score
         love.graphics.setFont(scoreFont)
-        if game.menuSelection == 1 then
-            love.graphics.setColor(0.4, 0.4, 0.4)
-        else
-            love.graphics.setColor(0.2, 0.2, 0.2)
-        end
-        love.graphics.rectangle("fill", playBtn.x, playBtn.y, playBtn.width, playBtn.height)
-        if game.menuSelection == 2 then
-            love.graphics.setColor(0.4, 0.4, 0.4)
-        else
-            love.graphics.setColor(0.2, 0.2, 0.2)
-        end
-        love.graphics.rectangle("fill", exitBtn.x, exitBtn.y, exitBtn.width, exitBtn.height)
+        local scoreText = string.format("SCORE: %04d", game.score)
+        local scoreWidth = scoreFont:getWidth(scoreText)
+        local scoreX = (love.graphics.getWidth() - scoreWidth) / 2
+        love.graphics.print(scoreText, scoreX, titleY + gameOverFont:getHeight() + 20)
 
-        -- Draw button borders
+        -- Draw name entry boxes
+        local nameY = titleY + gameOverFont:getHeight() + 60
+        local boxWidth = 40
+        local boxSpacing = 10
+        local totalWidth = (boxWidth * 3) + (boxSpacing * 2)
+        local startX = (love.graphics.getWidth() - totalWidth) / 2
+
+        for i = 1, 3 do
+            local boxX = startX + (i-1) * (boxWidth + boxSpacing)
+            local char = game.nameEntry.name:sub(i,i)
+
+            -- Draw box
+            love.graphics.setColor(0.2, 0.2, 0.2)
+            if i == game.nameEntry.position then
+                love.graphics.rectangle('fill', boxX, nameY, boxWidth, boxWidth, 4, 4)
+                love.graphics.setColor(0.75, 0.85, 0.65)
+            else
+                love.graphics.rectangle('line', boxX, nameY, boxWidth, boxWidth, 4, 4)
+            end
+
+            -- Draw character
+            local charWidth = scoreFont:getWidth(char)
+            local charX = boxX + (boxWidth - charWidth) / 2
+            local charY = nameY + (boxWidth - scoreFont:getHeight()) / 2
+            love.graphics.print(char, charX, charY)
+        end
+
+        -- Draw instructions
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        local instrText = "UP/DOWN: CHANGE  LEFT/RIGHT: MOVE  ENTER: OK"
+        local instrWidth = scoreFont:getWidth(instrText)
+        local instrX = (love.graphics.getWidth() - instrWidth) / 2
+        love.graphics.print(instrText, instrX, nameY + boxWidth + 30)
+
+        -- Apply shader effects
+        love.graphics.setCanvas()
         love.graphics.setColor(1, 1, 1)
-        love.graphics.rectangle("line", playBtn.x, playBtn.y, playBtn.width, playBtn.height)
-        love.graphics.rectangle("line", exitBtn.x, exitBtn.y, exitBtn.width, exitBtn.height)
-
-        local playText = "Play"
-        local exitText = "Exit"
-        local playTextX = playBtn.x + (playBtn.width - scoreFont:getWidth(playText)) / 2
-        local exitTextX = exitBtn.x + (exitBtn.width - scoreFont:getWidth(exitText)) / 2
-        local btnTextY = playBtn.y + (playBtn.height - scoreFont:getHeight()) / 2
-        love.graphics.print(playText, playTextX, btnTextY)
-        love.graphics.print(exitText, exitTextX, btnTextY)
+        love.graphics.setShader(shader)
+        love.graphics.draw(canvas)
+        love.graphics.setShader()
         return
     end
 
     -- When not in menu, draw using the canvas
     love.graphics.setCanvas(canvas)
-    love.graphics.clear(0.1, 0.1, 0.1, 1) -- Use a dark gray background
+    love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background color
 
     -- Draw snake
-    for i, segment in ipairs(game.snake) do
-        -- Calculate a slight color variation based on the segment index and time.
-        local factor = 0.9 + 0.1 * math.sin(love.timer.getTime() * 3 + i)
-        love.graphics.setColor(0, factor, 0)
+    for _, segment in ipairs(game.snake) do
+        -- Draw dark squares with rounded corners for snake
+        love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.rectangle('fill',
-            (segment.x - 1) * game.cell_size,
-            (segment.y - 1) * game.cell_size,
+            (segment.x - 1) * game.cell_size + 1,
+            (segment.y - 1) * game.cell_size + 1,
             game.cell_size - 2,
-            game.cell_size - 2)
+            game.cell_size - 2,
+            4, 4)  -- Added corner radius
     end
 
-    -- Draw food (with blinking effect if special)
-    if game.food.special then
-        local alpha = 0.5 + 0.5 * math.abs(math.sin(love.timer.getTime()*10))
-        love.graphics.setColor(1, 0, 0, alpha)  -- Special food: red (with blinking)
-    else
-        love.graphics.setColor(0, 0, 1)  -- Regular food: blue
-    end
+    -- Draw food (always dark, no blinking)
+    love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.rectangle('fill',
-        (game.food.x - 1) * game.cell_size,
-        (game.food.y - 1) * game.cell_size,
+        (game.food.x - 1) * game.cell_size + 1,
+        (game.food.y - 1) * game.cell_size + 1,
         game.cell_size - 2,
-        game.cell_size - 2)
+        game.cell_size - 2,
+        4, 4)  -- Added corner radius
 
-    -- Draw the main border on top
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("line", 0, 0, game.grid_size * game.cell_size, game.grid_size * game.cell_size)
+    -- Draw the main border
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", 0, 0,
+        game.grid_size * game.cell_size,
+        game.grid_size * game.cell_size)
 
     -- Reset canvas and apply shader
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)
     love.graphics.setShader(shader)
-    shader:send('screen', {love.graphics.getWidth(), love.graphics.getHeight()})
     love.graphics.draw(canvas)
     love.graphics.setShader()
 
-    -- Display score at top left
+    -- Display score with LCD style
     love.graphics.setFont(scoreFont)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Score: " .. game.score, 10, 10)
+    love.graphics.setColor(0.75, 0.85, 0.65)  -- Changed to LCD green color
+    love.graphics.print("SCORE: " .. string.format("%04d", game.score), 10, 10)
 
-    -- If game is over, display a game over message centered on the screen
+    -- If game is over, display game over screen with LCD style
     if game.over then
-        -- Revamped game over text in two lines
-        local gameOverMsg = "GAME OVER"
-        local scoreMsg = "Final Score: " .. game.score
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
 
-        -- Draw "GAME OVER" line using gameOverFont
+        -- Draw "GAME OVER" text
         love.graphics.setFont(gameOverFont)
+        local gameOverMsg = "GAME OVER"
         local gameOverWidth = gameOverFont:getWidth(gameOverMsg)
-        local gameOverHeight = gameOverFont:getHeight(gameOverMsg)
         local x = (love.graphics.getWidth() - gameOverWidth) / 2
-        local y = (love.graphics.getHeight() - gameOverHeight) / 2 - 30
-        love.graphics.setColor(1, 0, 0)
+        local y = love.graphics.getHeight() / 3
+        love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.print(gameOverMsg, x, y)
 
-        -- Draw "Final Score: X" line using scoreFont
+        -- Draw final score
         love.graphics.setFont(scoreFont)
+        local scoreMsg = string.format("FINAL SCORE: %04d", game.score)
         local scoreWidth = scoreFont:getWidth(scoreMsg)
         local scoreX = (love.graphics.getWidth() - scoreWidth) / 2
-        local scoreY = y + gameOverHeight + 10
-        love.graphics.setColor(1, 1, 1)
+        local scoreY = y + gameOverFont:getHeight() + 20
         love.graphics.print(scoreMsg, scoreX, scoreY)
 
-        -- Draw clickable buttons for "New Game" and "Exit"
-        local centerX = love.graphics.getWidth() / 2
-        local btnY = scoreY + scoreFont:getHeight() + 20
+        -- Draw buttons
+        local btnY = scoreY + scoreFont:getHeight() + 40
+        local btnWidth = 140
+        local btnHeight = 40
+        local btnSpacing = 20
 
-        local newGameBtn = {x = centerX - 120, y = btnY, width = 100, height = 40}
-        local exitBtn = {x = centerX + 20, y = btnY, width = 100, height = 40}
+        local newGameBtn = {x = (love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, y = btnY, width = btnWidth, height = btnHeight}
+        local exitBtn = {x = newGameBtn.x + btnWidth + btnSpacing, y = btnY, width = btnWidth, height = btnHeight}
 
-        love.graphics.setFont(scoreFont)
-        if game.menuSelection == 1 then
-            love.graphics.setColor(0.4, 0.4, 0.4)
-        else
-            love.graphics.setColor(0.2, 0.2, 0.2)
+        -- Helper function to check if mouse is over a button
+        local function isMouseOver(btn)
+            return game.mouseX >= btn.x and game.mouseX <= btn.x + btn.width and
+                   game.mouseY >= btn.y and game.mouseY <= btn.y + btn.height
         end
-        love.graphics.rectangle("fill", newGameBtn.x, newGameBtn.y, newGameBtn.width, newGameBtn.height)
-        if game.menuSelection == 2 then
-            love.graphics.setColor(0.4, 0.4, 0.4)
-        else
+
+        local buttons = {
+            {btn = newGameBtn, text = "NEW GAME", selected = game.menuSelection == 1},
+            {btn = exitBtn, text = "EXIT", selected = game.menuSelection == 2}
+        }
+
+        for _, button in ipairs(buttons) do
             love.graphics.setColor(0.2, 0.2, 0.2)
+            if button.selected or isMouseOver(button.btn) then
+                love.graphics.rectangle('fill', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
+                love.graphics.setColor(0.75, 0.85, 0.65)
+            else
+                love.graphics.rectangle('line', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
+                love.graphics.setColor(0.2, 0.2, 0.2)
+            end
+
+            local textWidth = scoreFont:getWidth(button.text)
+            local textX = button.btn.x + (button.btn.width - textWidth) / 2
+            local textY = button.btn.y + (button.btn.height - scoreFont:getHeight()) / 2
+            love.graphics.print(button.text, textX, textY)
         end
-        love.graphics.rectangle("fill", exitBtn.x, exitBtn.y, exitBtn.width, exitBtn.height)
 
-        -- Button borders
+        -- Apply shader effects
+        love.graphics.setCanvas()
         love.graphics.setColor(1, 1, 1)
-        love.graphics.rectangle("line", newGameBtn.x, newGameBtn.y, newGameBtn.width, newGameBtn.height)
-        love.graphics.rectangle("line", exitBtn.x, exitBtn.y, exitBtn.width, exitBtn.height)
-
-        -- Button texts
-        local newGameText = "New Game"
-        local exitText = "Exit"
-        local newGameTextWidth = scoreFont:getWidth(newGameText)
-        local exitTextWidth = scoreFont:getWidth(exitText)
-        local newGameTextX = newGameBtn.x + (newGameBtn.width - newGameTextWidth) / 2
-        local exitTextX = exitBtn.x + (exitBtn.width - exitTextWidth) / 2
-        local btnTextY = newGameBtn.y + (newGameBtn.height - scoreFont:getHeight()) / 2
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(newGameText, newGameTextX, btnTextY)
-        love.graphics.print(exitText, exitTextX, btnTextY)
-
-        love.graphics.setFont(scoreFont)  -- revert to scoreFont if necessary
+        love.graphics.setShader(shader)
+        love.graphics.draw(canvas)
+        love.graphics.setShader()
     end
 end
 
@@ -282,37 +438,87 @@ function love.keypressed(key)
     if game.state == "menu" then
         if key == "up" or key == "w" then
             game.menuSelection = game.menuSelection - 1
-            if game.menuSelection < 1 then game.menuSelection = 2 end
+            if game.menuSelection < 1 then game.menuSelection = 3 end
         elseif key == "down" or key == "s" then
             game.menuSelection = game.menuSelection + 1
-            if game.menuSelection > 2 then game.menuSelection = 1 end
+            if game.menuSelection > 3 then game.menuSelection = 1 end
         elseif key == "return" or key == "enter" then
             if game.menuSelection == 1 then
                 resetGame()
             elseif game.menuSelection == 2 then
+                game.state = "highscores"
+            elseif game.menuSelection == 3 then
                 love.event.quit()
             end
         elseif key == "escape" or key == "q" then
             love.event.quit()
         end
-    elseif game.over then
+    elseif game.state == "highscores" then
+        if key == "escape" or key == "return" or key == "enter" or key == "backspace" then
+            game.state = "menu"
+        end
+    elseif game.nameEntry.active then
         if key == "up" or key == "w" then
+            -- Get current character and increment it
+            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
+            char = char + 1
+            if char > string.byte('Z') then char = string.byte('A') end
+
+            -- Update the character at the current position
+            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
+                                string.char(char) ..
+                                game.nameEntry.name:sub(game.nameEntry.position + 1)
+
+        elseif key == "down" or key == "s" then
+            -- Get current character and decrement it
+            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
+            char = char - 1
+            if char < string.byte('A') then char = string.byte('Z') end
+
+            -- Update the character at the current position
+            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
+                                string.char(char) ..
+                                game.nameEntry.name:sub(game.nameEntry.position + 1)
+
+        elseif key == "left" or key == "a" then
+            game.nameEntry.position = game.nameEntry.position - 1
+            if game.nameEntry.position < 1 then game.nameEntry.position = 3 end
+
+        elseif key == "right" or key == "d" then
+            game.nameEntry.position = game.nameEntry.position + 1
+            if game.nameEntry.position > 3 then game.nameEntry.position = 1 end
+
+        elseif key == "return" or key == "enter" then
+            -- Save the high score and return to menu
+            addHighScore(game.nameEntry.name, game.score)
+            game.nameEntry.active = false
+            game.state = "menu"
+        end
+    elseif game.over then
+        if key == "up" or key == "w" or key == "left" or key == "a" then
             game.menuSelection = game.menuSelection - 1
             if game.menuSelection < 1 then game.menuSelection = 2 end
-        elseif key == "down" or key == "s" then
+        elseif key == "down" or key == "s" or key == "right" or key == "d" then
             game.menuSelection = game.menuSelection + 1
             if game.menuSelection > 2 then game.menuSelection = 1 end
         elseif key == "return" or key == "enter" then
-            if game.menuSelection == 1 then
-                resetGame()
-            elseif game.menuSelection == 2 then
-                love.event.quit()
+            if isHighScore(game.score) then
+                -- Initialize name entry
+                game.nameEntry.active = true
+                game.nameEntry.name = "AAA"
+                game.nameEntry.position = 1
+            else
+                if game.menuSelection == 1 then
+                    resetGame()
+                elseif game.menuSelection == 2 then
+                    love.event.quit()
+                end
             end
         elseif key == "escape" or key == "q" then
             love.event.quit()
         end
     else
-        -- In-game, update queued direction as before.
+        -- In-game controls
         if (key == 'up' or key == 'w') and game.pendingDirection.y == 0 then
             game.pendingDirection = {x = 0, y = -1}
         elseif (key == 'down' or key == 's') and game.pendingDirection.y == 0 then
@@ -347,9 +553,15 @@ function moveSnake()
         end
     end
 
+    -- Always insert the new head first
+    table.insert(game.snake, 1, new_head)
+
     -- Check for food collision
     if new_head.x == game.food.x and new_head.y == game.food.y then
-        table.insert(game.snake, 1, new_head)
+        -- Play eat sound
+        sounds.eat:stop()  -- Stop any currently playing instance
+        sounds.eat:play()  -- Play the sound
+
         if game.food.special then
             game.score = game.score + 3  -- Special food is worth 3 points
         else
@@ -363,7 +575,7 @@ function moveSnake()
             spawnFood(false)
         end
     else
-        table.insert(game.snake, 1, new_head)
+        -- Remove tail only if food wasn't eaten
         table.remove(game.snake)
     end
 end
@@ -412,7 +624,14 @@ function resetGame()
         over = false,      -- Reset game over flag
         arrowHoldTime = 0, -- Reset arrowHoldTime
         state = "running",  -- Set state to "running" on new game
-        menuSelection = 1  -- Reset menuSelection
+        menuSelection = 1,  -- Reset menuSelection
+        nameEntry = {      -- Reset nameEntry
+            active = false,
+            name = "AAA",
+            position = 1
+        },
+        mouseX = 0,        -- Reset mouse position
+        mouseY = 0
     }
     spawnFood(false)
 end
@@ -421,28 +640,110 @@ function love.mousepressed(x, y, button)
     if button == 1 then
         if game.state == "menu" then
             local centerX = love.graphics.getWidth() / 2
-            local btnY = (love.graphics.getHeight() / 3) + gameOverFont:getHeight() + 40  -- same as drawn in menu
-            local playBtn = {x = centerX - 120, y = btnY, width = 100, height = 40}
-            local exitBtn = {x = centerX + 20, y = btnY, width = 100, height = 40}
+            local titleY = love.graphics.getHeight() / 4
+            local btnY = titleY + gameOverFont:getHeight() + 40
+            local btnSpacing = 50
+            local btnWidth = 140
+            local btnHeight = 40
+
+            local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
+            local scoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
+            local exitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
+
             if x >= playBtn.x and x <= playBtn.x + playBtn.width and
                y >= playBtn.y and y <= playBtn.y + playBtn.height then
                 resetGame()
+            elseif x >= scoresBtn.x and x <= scoresBtn.x + scoresBtn.width and
+                   y >= scoresBtn.y and y <= scoresBtn.y + scoresBtn.height then
+                game.state = "highscores"
             elseif x >= exitBtn.x and x <= exitBtn.x + exitBtn.width and
-               y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
+                   y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
                 love.event.quit()
             end
-        elseif game.over then
-            local centerX = love.graphics.getWidth() / 2
-            local btnY = (love.graphics.getHeight() - scoreFont:getHeight()) / 2 + 20 + gameOverFont:getHeight()
-            local newGameBtn = {x = centerX - 120, y = btnY, width = 100, height = 40}
-            local exitBtn = {x = centerX + 20, y = btnY, width = 100, height = 40}
+        elseif game.state == "highscores" then
+            -- Handle back button click
+            local startY = 50 + gameOverFont:getHeight() + 20
+            local backBtn = {
+                x = (love.graphics.getWidth() - 140) / 2,
+                y = startY + 11 * 30,
+                width = 140,
+                height = 40
+            }
+
+            if x >= backBtn.x and x <= backBtn.x + backBtn.width and
+               y >= backBtn.y and y <= backBtn.y + backBtn.height then
+                game.state = "menu"
+            end
+        elseif game.over and not game.nameEntry.active then
+            local btnY = (love.graphics.getHeight() / 3) + gameOverFont:getHeight() + scoreFont:getHeight() + 60
+            local btnWidth = 140
+            local btnHeight = 40
+            local btnSpacing = 20
+
+            local newGameBtn = {x = (love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, y = btnY, width = btnWidth, height = btnHeight}
+            local exitBtn = {x = newGameBtn.x + btnWidth + btnSpacing, y = btnY, width = btnWidth, height = btnHeight}
+
             if x >= newGameBtn.x and x <= newGameBtn.x + newGameBtn.width and
                y >= newGameBtn.y and y <= newGameBtn.y + newGameBtn.height then
-                resetGame()
+                if isHighScore(game.score) then
+                    -- Initialize name entry
+                    game.nameEntry.active = true
+                    game.nameEntry.name = "AAA"
+                    game.nameEntry.position = 1
+                else
+                    resetGame()
+                end
             elseif x >= exitBtn.x and x <= exitBtn.x + exitBtn.width and
-               y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
+                   y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
                 love.event.quit()
             end
         end
     end
+end
+
+-- High score related functions
+function loadHighScores()
+    local scores = {}
+    local file = io.open("highscores.txt", "r")
+    if file then
+        for line in file:lines() do
+            local name, score = line:match("(%w+):(%d+)")
+            if name and score then
+                table.insert(scores, {name = name, score = tonumber(score)})
+            end
+        end
+        file:close()
+    end
+
+    -- If we don't have 10 scores, fill with defaults
+    while #scores < 10 do
+        table.insert(scores, {name = "AAA", score = 0})
+    end
+
+    -- Sort scores
+    table.sort(scores, function(a, b) return a.score > b.score end)
+    return scores
+end
+
+function saveHighScores()
+    local file = io.open("highscores.txt", "w")
+    if file then
+        for _, score in ipairs(highScores) do
+            file:write(string.format("%s:%d\n", score.name, score.score))
+        end
+        file:close()
+    end
+end
+
+function isHighScore(score)
+    return score > highScores[#highScores].score
+end
+
+function addHighScore(name, score)
+    table.insert(highScores, {name = name, score = score})
+    table.sort(highScores, function(a, b) return a.score > b.score end)
+    if #highScores > 10 then
+        table.remove(highScores, 11)
+    end
+    saveHighScores()
 end
