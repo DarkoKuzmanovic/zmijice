@@ -7,6 +7,12 @@ function love.load()
         eat = love.audio.newSource("eat.wav", "static")
     }
 
+    -- Load food images
+    foodImages = {
+        regular = love.graphics.newImage("food.png"),
+        special = love.graphics.newImage("special.png")
+    }
+
     -- Initialize game state
     game = {
         grid_size = 20,
@@ -195,7 +201,7 @@ function love.draw()
 
         -- Draw copyright notice
         love.graphics.setColor(0.2, 0.2, 0.2)
-        local copyright = "(C) 2024 ZMIJICE v0.9.0 - Darko Kuzmanovic"
+        local copyright = "(C) 2024 ZMIJICE v0.9.0 - Darko Kuzmanovic for Lenkalica"
         local copyrightWidth = scoreFont:getWidth(copyright)
         local copyrightX = (love.graphics.getWidth() - copyrightWidth) / 2
         local copyrightY = love.graphics.getHeight() - scoreFont:getHeight() - 20
@@ -329,7 +335,6 @@ function love.draw()
 
     -- Draw snake
     for _, segment in ipairs(game.snake) do
-        -- Draw dark squares with rounded corners for snake
         love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.rectangle('fill',
             (segment.x - 1) * game.cell_size + 1,
@@ -339,14 +344,18 @@ function love.draw()
             4, 4)  -- Added corner radius
     end
 
-    -- Draw food (always dark, no blinking)
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle('fill',
-        (game.food.x - 1) * game.cell_size + 1,
-        (game.food.y - 1) * game.cell_size + 1,
-        game.cell_size - 2,
-        game.cell_size - 2,
-        4, 4)  -- Added corner radius
+    -- Draw food using the appropriate image
+    local foodX = (game.food.x - 1) * game.cell_size + 1
+    local foodY = (game.food.y - 1) * game.cell_size + 1
+    local blinkAlpha = 1
+    if game.food and game.food.special then
+        blinkAlpha = math.abs(math.sin(love.timer.getTime() * 10))
+        love.graphics.setColor(1, 1, 1, blinkAlpha)
+        love.graphics.draw(foodImages.special, foodX, foodY)
+    else
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(foodImages.regular, foodX, foodY)
+    end
 
     -- Draw the main border
     love.graphics.setColor(0.2, 0.2, 0.2)
