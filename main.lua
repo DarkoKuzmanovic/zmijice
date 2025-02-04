@@ -4,7 +4,9 @@ function love.load()
 
     -- Load sound effects
     sounds = {
-        eat = love.audio.newSource("eat.wav", "static")
+        food = love.audio.newSource("food.wav", "static"),
+        special = love.audio.newSource("special.wav", "static"),
+        die = love.audio.newSource("die.wav", "static")
     }
 
     -- Load food images
@@ -378,6 +380,12 @@ function love.draw()
 
     -- If game is over, display game over screen with LCD style
     if game.over then
+        -- Play death sound only when transitioning to game over screen
+        if not game.deathSoundPlayed then
+            sounds.die:play()
+            game.deathSoundPlayed = true
+        end
+
         love.graphics.setCanvas(canvas)
         love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
 
@@ -567,9 +575,14 @@ function moveSnake()
 
     -- Check for food collision
     if new_head.x == game.food.x and new_head.y == game.food.y then
-        -- Play eat sound
-        sounds.eat:stop()  -- Stop any currently playing instance
-        sounds.eat:play()  -- Play the sound
+        -- Play appropriate eat sound
+        if game.food.special then
+            sounds.special:stop()  -- Stop any currently playing instance
+            sounds.special:play()  -- Play the special food sound
+        else
+            sounds.food:stop()  -- Stop any currently playing instance
+            sounds.food:play()  -- Play the regular food sound
+        end
 
         if game.food.special then
             game.score = game.score + 3  -- Special food is worth 3 points
@@ -631,6 +644,7 @@ function resetGame()
         move_delay = 0.15, -- Snake movement speed
         score = 0,         -- Reset the score
         over = false,      -- Reset game over flag
+        deathSoundPlayed = false,  -- Add flag to track if death sound has been played
         arrowHoldTime = 0, -- Reset arrowHoldTime
         state = "running",  -- Set state to "running" on new game
         menuSelection = 1,  -- Reset menuSelection
