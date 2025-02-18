@@ -1,0 +1,2 @@
+sfxVolume:1.000000
+crtEffect:CLASSIC
