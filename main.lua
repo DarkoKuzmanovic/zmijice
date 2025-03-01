@@ -16,6 +16,9 @@ function love.load()
 
     -- Load rendering assets
     render.load()
+
+    -- Load input assets
+    input.load()
 end
 
 function love.update(dt)
@@ -36,6 +39,10 @@ end
 
 function love.mousemoved(x, y, dx, dy)
     input.mousemoved(game, settings, x, y, dx, dy)
+end
+
+function love.wheelmoved(x, y)
+    input.wheelmoved(game, settings, highscores, x, y)
 end
 
 function love.quit()

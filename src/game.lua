@@ -86,6 +86,7 @@ function game.moveSnake()
     if new_head.x < 1 or new_head.x > game.grid_size or
        new_head.y < 1 or new_head.y > game.grid_size then
         game.over = true
+        game.state = "gameOver"
         return
     end
 
@@ -93,6 +94,7 @@ function game.moveSnake()
     for _, segment in ipairs(game.snake) do
         if new_head.x == segment.x and new_head.y == segment.y then
             game.over = true
+            game.state = "gameOver"
             return
         end
     end
@@ -204,6 +206,15 @@ function game.update(dt)
          if game.food.specialTimer <= 0 then
               game.spawnFood(false)
          end
+    end
+end
+
+function game.loseLife(player, settings, enemy)
+    -- ... existing logic ...
+    if player.lives <= 0 then
+        game.state = "gameOver"
+        game.over = true  -- Add this line!
+        -- ... potentially other logic ...
     end
 end
 

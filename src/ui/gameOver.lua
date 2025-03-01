@@ -84,7 +84,7 @@ function gameOver.draw(game, settings, highscores)
 end
 
 function gameOver.mousepressed(game, highscores, x, y, button)
-    if button == 1 and not game.nameEntry.active then
+    if button == 1 then
         local btnY = (love.graphics.getHeight() / 3) + gameOverFont:getHeight() + scoreFont:getHeight() + 60
         local btnWidth = 140
         local btnHeight = 40
@@ -95,42 +95,78 @@ function gameOver.mousepressed(game, highscores, x, y, button)
 
         if x >= newGameBtn.x and x <= newGameBtn.x + newGameBtn.width and
            y >= newGameBtn.y and y <= newGameBtn.y + newGameBtn.height then
+            game.menuSelection = 1
             if highscores.isHighScore(game.score) then
                 -- Initialize name entry
                 game.nameEntry.active = true
                 game.nameEntry.name = "AAA"
                 game.nameEntry.position = 1
+                if game.sounds and game.sounds.confirm then
+                    game.sounds.confirm:stop()
+                    game.sounds.confirm:play()
+                end
             else
                 game.reset()
+                if game.sounds and game.sounds.confirm then
+                    game.sounds.confirm:stop()
+                    game.sounds.confirm:play()
+                end
             end
         elseif x >= exitBtn.x and x <= exitBtn.x + exitBtn.width and
                y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
+            game.menuSelection = 2
             love.event.quit()
         end
     end
 end
 
 function gameOver.keypressed(game, highscores, key)
+    -- Initialize selection if not set
+    if game.menuSelection == nil then
+        game.menuSelection = 1
+    end
+
     if key == "up" or key == "w" or key == "left" or key == "a" then
         game.menuSelection = game.menuSelection - 1
         if game.menuSelection < 1 then game.menuSelection = 2 end
+        if game.sounds and game.sounds.select then
+            game.sounds.select:stop()
+            game.sounds.select:play()
+        end
     elseif key == "down" or key == "s" or key == "right" or key == "d" then
         game.menuSelection = game.menuSelection + 1
         if game.menuSelection > 2 then game.menuSelection = 1 end
-    elseif key == "return" or key == "enter" then
-        if highscores.isHighScore(game.score) then
-            game.nameEntry.active = true
-            game.nameEntry.name = "AAA"
-            game.nameEntry.position = 1
-        else
-            if game.menuSelection == 1 then
+        if game.sounds and game.sounds.select then
+            game.sounds.select:stop()
+            game.sounds.select:play()
+        end
+    elseif key == "return" or key == "enter" or key == "space" then
+        if game.menuSelection == 1 then
+            if highscores.isHighScore(game.score) then
+                -- Initialize name entry
+                game.nameEntry.active = true
+                game.nameEntry.name = "AAA"
+                game.nameEntry.position = 1
+                if game.sounds and game.sounds.confirm then
+                    game.sounds.confirm:stop()
+                    game.sounds.confirm:play()
+                end
+            else
                 game.reset()
-            elseif game.menuSelection == 2 then
-                love.event.quit()
+                if game.sounds and game.sounds.confirm then
+                    game.sounds.confirm:stop()
+                    game.sounds.confirm:play()
+                end
             end
+        elseif game.menuSelection == 2 then
+            love.event.quit()
         end
     elseif key == "escape" or key == "q" then
-        love.event.quit()
+        if game.sounds and game.sounds.back then
+            game.sounds.back:stop()
+            game.sounds.back:play()
+        end
+        game.state = "menu"
     end
 end
 

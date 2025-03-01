@@ -3,6 +3,33 @@ local input = {}
 local menu = require("src/ui/menu")
 local options = require("src/ui/options")
 local gameOver = require("src/ui/gameOver")
+local highscoresUI = require("src/ui/highscores") -- Import highscores UI
+local nameEntry = require("src/ui/nameEntry") -- Require the new module
+local settings = require("src/settings")
+
+-- Ensure volume adjustment functions exist on settings
+if not settings.decreaseSfxVolume then
+    settings.decreaseSfxVolume = _G.decreaseSfxVolume
+end
+if not settings.increaseSfxVolume then
+    settings.increaseSfxVolume = _G.increaseSfxVolume
+end
+
+-- Define fonts
+local gameOverFont = nil
+local scoreFont = nil
+
+function input.load()
+    gameOverFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 16)
+
+    -- Set fonts to use nearest-neighbor filtering for a crisp retro look
+    gameOverFont:setFilter("nearest", "nearest")
+    scoreFont:setFilter("nearest", "nearest")
+
+    highscoresUI.load() -- Load highscores UI
+    nameEntry.load() -- Load nameEntry
+end
 
 -- Helper function to safely play a sound
 local function playSound(sounds, soundName)
@@ -118,37 +145,13 @@ function input.keypressed(game, settings, highscores, key)
             end
         end
     elseif game.state == "highscores" then
-        if key == "escape" or key == "return" or key == "enter" or key == "backspace" then
-            game.state = "menu"
+        highscoresUI.keypressed(game, key) -- Delegate to highscoresUI
+    elseif game.state == "gameOver" then
+        if game.nameEntry.active then
+            nameEntry.keypressed(game, key) -- Delegate to nameEntry
+        else
+            gameOver.keypressed(game, highscores, key)
         end
-    elseif game.nameEntry.active then
-        if key == "up" or key == "w" then
-            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
-            char = char + 1
-            if char > string.byte('Z') then char = string.byte('A') end
-            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
-                                   string.char(char) ..
-                                   game.nameEntry.name:sub(game.nameEntry.position + 1)
-        elseif key == "down" or key == "s" then
-            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
-            char = char - 1
-            if char < string.byte('A') then char = string.byte('Z') end
-            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
-                                   string.char(char) ..
-                                   game.nameEntry.name:sub(game.nameEntry.position + 1)
-        elseif key == "left" or key == "a" then
-            game.nameEntry.position = game.nameEntry.position - 1
-            if game.nameEntry.position < 1 then game.nameEntry.position = 3 end
-        elseif key == "right" or key == "d" then
-            game.nameEntry.position = game.nameEntry.position + 1
-            if game.nameEntry.position > 3 then game.nameEntry.position = 1 end
-        elseif key == "return" or key == "enter" then
-            highscores.add(game.nameEntry.name, game.score)
-            game.nameEntry.active = false
-            game.state = "menu"
-        end
-    elseif game.over then
-        gameOver.keypressed(game, highscores, key)
     end
 end
 
@@ -248,8 +251,14 @@ function input.mousepressed(game, settings, highscores, x, y, button)
                 playSound(game.sounds, "select")
             end
         end
-    elseif game.over and not game.nameEntry.active then
-        gameOver.mousepressed(game, highscores, x, y, button)
+    elseif game.state == "highscores" then
+        highscoresUI.mousepressed(game, x, y) -- Delegate to highscoresUI
+    elseif game.state == "gameOver" then
+        if game.nameEntry.active then
+            nameEntry.mousepressed(game, x, y) -- Delegate
+        else
+            gameOver.mousepressed(game, highscores, x, y, button)
+        end
     end
 end
 
@@ -295,6 +304,52 @@ function input.mousemoved(game, settings, x, y, dx, dy)
             settings.selectedOption = 2
         elseif y >= centerY + spacing*2 + buttonHeight*1.5 and y <= centerY + spacing*2 + buttonHeight*2.5 then
             settings.selectedOption = 3
+        end
+    elseif game.state == "gameOver" and not game.nameEntry.active then
+        -- Update game over menu selection based on mouse position
+        local btnY = (love.graphics.getHeight() / 3) + gameOverFont:getHeight() + scoreFont:getHeight() + 60
+        local btnWidth = 140
+        local btnHeight = 40
+        local btnSpacing = 20
+
+        local newGameBtn = {x = (love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, y = btnY, width = btnWidth, height = btnHeight}
+        local exitBtn = {x = newGameBtn.x + btnWidth + btnSpacing, y = btnY, width = btnWidth, height = btnHeight}
+
+        if x >= newGameBtn.x and x <= newGameBtn.x + newGameBtn.width and
+           y >= newGameBtn.y and y <= newGameBtn.y + newGameBtn.height then
+            game.menuSelection = 1
+        elseif x >= exitBtn.x and x <= exitBtn.x + exitBtn.width and
+               y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
+            game.menuSelection = 2
+        end
+    elseif game.nameEntry.active then
+        nameEntry.mousemoved(game, x, y)
+    elseif game.state == "highscores" then
+        highscoresUI.mousemoved(game, x, y)
+    end
+end
+
+-- Add mousewheel function for changing characters
+function input.wheelmoved(game, settings, highscores, x, y)
+    if game.nameEntry.active then
+        if y > 0 then
+            -- Wheel up - increment character
+            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
+            char = char + 1
+            if char > string.byte('Z') then char = string.byte('A') end
+            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
+                                   string.char(char) ..
+                                   game.nameEntry.name:sub(game.nameEntry.position + 1)
+            playSound(game.sounds, "select")
+        elseif y < 0 then
+            -- Wheel down - decrement character
+            local char = string.byte(game.nameEntry.name:sub(game.nameEntry.position, game.nameEntry.position))
+            char = char - 1
+            if char < string.byte('A') then char = string.byte('Z') end
+            game.nameEntry.name = game.nameEntry.name:sub(1, game.nameEntry.position - 1) ..
+                                   string.char(char) ..
+                                   game.nameEntry.name:sub(game.nameEntry.position + 1)
+            playSound(game.sounds, "select")
         end
     end
 end

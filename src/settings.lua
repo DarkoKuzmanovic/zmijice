@@ -27,6 +27,10 @@ local settings = {
 local shader = nil
 local canvas = nil
 
+-- Set default sound volume and sounds table if not already defined
+if settings.sfxVolume == nil then settings.sfxVolume = 0.5 end
+if settings.sounds == nil then settings.sounds = {} end
+
 function settings.save()
     local file = io.open("settings.txt", "w")
     if file then
@@ -158,5 +162,21 @@ function settings.updateSoundVolumes(sounds)
         sound:setVolume(settings.sfxVolume)
     end
 end
+
+-- Add sound volume adjustment functions
+function settings.increaseSfxVolume()
+    settings.sfxVolume = math.min(1, settings.sfxVolume + 0.1)
+    settings.updateSoundVolumes(settings.sounds)
+end
+
+function settings.decreaseSfxVolume()
+    settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
+    settings.updateSoundVolumes(settings.sounds)
+end
+
+_G.increaseSfxVolume = settings.increaseSfxVolume
+_G.decreaseSfxVolume = settings.decreaseSfxVolume
+
+_G.settings = settings
 
 return settings
