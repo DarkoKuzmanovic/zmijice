@@ -32,18 +32,18 @@ function menu.draw(game, settings)
     local btnSpacing = 50
     local btnWidth = 140
     local btnHeight = 40
-
-    -- Three options: PLAY, OPTIONS, QUIT
+    -- Update button positions to accommodate the new button
     local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
     local optionsBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
-    local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
-
+    local highscoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}  -- Add this
+    local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 3, width = btnWidth, height = btnHeight}  -- Update position
     love.graphics.setFont(scoreFont)
 
     local buttons = {
         {btn = playBtn, text = "PLAY", selected = game.menuSelection == 1},
         {btn = optionsBtn, text = "OPTIONS", selected = game.menuSelection == 2},
-        {btn = quitBtn, text = "QUIT", selected = game.menuSelection == 3}
+        {btn = highscoresBtn, text = "HIGHSCORES", selected = game.menuSelection == 3},
+        {btn = quitBtn, text = "QUIT", selected = game.menuSelection == 4}
     }
 
     local function isMouseOver(btn)
@@ -85,16 +85,18 @@ end
 function menu.keypressed(game, key)
     if key == "up" or key == "w" then
         game.menuSelection = game.menuSelection - 1
-        if game.menuSelection < 1 then game.menuSelection = 3 end
+        if game.menuSelection < 1 then game.menuSelection = 4 end
     elseif key == "down" or key == "s" then
         game.menuSelection = game.menuSelection + 1
-        if game.menuSelection > 3 then game.menuSelection = 1 end
+        if game.menuSelection > 4 then game.menuSelection = 1 end
     elseif key == "return" or key == "enter" then
         if game.menuSelection == 1 then
             game.reset()
         elseif game.menuSelection == 2 then
             game.state = "options"
         elseif game.menuSelection == 3 then
+            game.state = "highscores"
+        elseif game.menuSelection == 4 then
             love.event.quit()
         end
     elseif key == "escape" or key == "q" then
@@ -113,7 +115,8 @@ function menu.mousepressed(game, x, y, button)
 
         local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
         local optionsBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
-        local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
+        local highscoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
+        local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 3, width = btnWidth, height = btnHeight}
 
         if x >= playBtn.x and x <= playBtn.x + playBtn.width and
            y >= playBtn.y and y <= playBtn.y + playBtn.height then
@@ -121,6 +124,9 @@ function menu.mousepressed(game, x, y, button)
         elseif x >= optionsBtn.x and x <= optionsBtn.x + optionsBtn.width and
                y >= optionsBtn.y and y <= optionsBtn.y + optionsBtn.height then
             game.state = "options"
+        elseif x >= highscoresBtn.x and x <= highscoresBtn.x + highscoresBtn.width and
+               y >= highscoresBtn.y and y <= highscoresBtn.y + highscoresBtn.height then
+            game.state = "highscores"
         elseif x >= quitBtn.x and x <= quitBtn.x + quitBtn.width and
                y >= quitBtn.y and y <= quitBtn.y + quitBtn.height then
             love.event.quit()
