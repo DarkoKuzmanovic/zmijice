@@ -5,8 +5,8 @@ local gameOverFont = nil
 local scoreFont = nil
 
 function nameEntry.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/VGA New.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/VGA New.ttf", 16)
+    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
     gameOverFont:setFilter("nearest", "nearest")
     scoreFont:setFilter("nearest", "nearest")
 end

@@ -4,8 +4,8 @@ local gameOverFont = nil
 local scoreFont = nil
 
 function gameOver.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/VGA New.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/VGA New.ttf", 16)
+    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
 
     -- Set fonts to use nearest-neighbor filtering for a crisp retro look
     gameOverFont:setFilter("nearest", "nearest")

@@ -25,6 +25,7 @@ function love.load()
 
     -- Initialize game state
     game.reset()
+    game.draggingSfxSlider = false
 end
 
 function love.update(dt)

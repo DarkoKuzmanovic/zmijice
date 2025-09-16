@@ -4,8 +4,8 @@ local gameOverFont = nil
 local scoreFont = nil
 
 function menu.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 16)
+    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
 
     -- Set fonts to use nearest-neighbor filtering for a crisp retro look
     gameOverFont:setFilter("nearest", "nearest")
@@ -69,7 +69,7 @@ function menu.draw(game, settings)
 
     -- Draw copyright notice
     love.graphics.setColor(0.2, 0.2, 0.2)
-    local copyright = "(C) 2024 ZMIJICE v0.9.0 - Darko Kuzmanovic for Lenkalica"
+    local copyright = "(C) 2025 ZMIJICE v1.0.0 - Darko Kuzmanovic for Lenkalica"
     local copyrightWidth = scoreFont:getWidth(copyright)
     local copyrightX = (love.graphics.getWidth() - copyrightWidth) / 2
     local copyrightY = love.graphics.getHeight() - scoreFont:getHeight() - 20

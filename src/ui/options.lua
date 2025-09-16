@@ -4,8 +4,8 @@ local gameOverFont = nil
 local scoreFont = nil
 
 function options.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 16)
+    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
 
     -- Set fonts to use nearest-neighbor filtering for a crisp retro look
     gameOverFont:setFilter("nearest", "nearest")
@@ -32,33 +32,47 @@ function options.draw(game, settings)
     love.graphics.print(title, titleX, titleY)
 
     love.graphics.setFont(scoreFont)
-    local startY = titleY + gameOverFont:getHeight() + 40
+    local startY = titleY + gameOverFont:getHeight() + 50
+    local optionSpacing = 80  -- Increased spacing between options
 
     -- Option 1: SFX Volume slider
     local sfxText = string.format("SFX Volume: %d%%", settings.sfxVolume * 100)
     local sfxTextWidth = scoreFont:getWidth(sfxText)
     local sfxX = (love.graphics.getWidth() - sfxTextWidth) / 2
 
-    -- Draw volume text with color based on selection
-    if game.optionsSelection == 1 then
-        love.graphics.setColor(0.1, 0.4, 0.1) -- Darker green when selected
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-    love.graphics.print(sfxText, sfxX, startY)
-
     local sliderWidth = 200
     local sliderHeight = 20
     local sliderX = (love.graphics.getWidth() - sliderWidth) / 2
-    local sliderY = startY + scoreFont:getHeight() + 10
+    local sliderY = startY + scoreFont:getHeight() + 15
 
-    -- Draw slider background
-    love.graphics.setColor(0.2, 0.2, 0.2)
+    -- Draw selection rectangle for SFX Volume option (wider and taller)
+    local selectionWidth = sliderWidth + 60
+    local selectionHeight = scoreFont:getHeight() + sliderHeight + 45
+    local selectionX = (love.graphics.getWidth() - selectionWidth) / 2
+    local selectionY = startY - 15
+
+    if settings.selectedOption == 1 then
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", selectionX, selectionY, selectionWidth, selectionHeight, 4)
+        love.graphics.setColor(0.75, 0.85, 0.65)
+    else
+        love.graphics.setColor(0.2, 0.2, 0.2)
+    end
+
+    -- Draw volume text
+    love.graphics.print(sfxText, sfxX, startY)
+
+    -- Draw slider background (inverted color when selected)
+    if settings.selectedOption == 1 then
+        love.graphics.setColor(0.75, 0.85, 0.65)
+    else
+        love.graphics.setColor(0.2, 0.2, 0.2)
+    end
     love.graphics.rectangle("line", sliderX, sliderY, sliderWidth, sliderHeight, 4, 4)
 
-    -- Draw slider fill with brighter color when selected
-    if game.optionsSelection == 1 then
-        love.graphics.setColor(0.1, 0.4, 0.1) -- Darker green when selected
+    -- Draw slider fill (inverted color when selected)
+    if settings.selectedOption == 1 then
+        love.graphics.setColor(0.75, 0.85, 0.65)
     else
         love.graphics.setColor(0.2, 0.2, 0.2)
     end
@@ -69,39 +83,22 @@ function options.draw(game, settings)
     local knobHeight = sliderHeight + 8
     local knobX = sliderX + (sliderWidth * settings.sfxVolume) - (knobWidth / 2)
     local knobY = sliderY - 4
+
+    -- Draw slider knob (inverted color when selected)
+    if settings.selectedOption == 1 then
+        love.graphics.setColor(0.75, 0.85, 0.65)
+    else
+        love.graphics.setColor(0.2, 0.2, 0.2)
+    end
     love.graphics.rectangle("fill", knobX, knobY, knobWidth, knobHeight, 2, 2)
 
     -- Option 2: CRT Effect toggle
     local crtText = string.format("CRT Effect: %s", settings.crtEffect)
     local crtTextWidth = scoreFont:getWidth(crtText)
     local crtX = (love.graphics.getWidth() - crtTextWidth) / 2
-    local crtY = sliderY + sliderHeight + 30
+    local crtY = startY + optionSpacing
 
-    -- Draw CRT text with color based on selection
-    if game.optionsSelection == 2 then
-        love.graphics.setColor(0.1, 0.4, 0.1) -- Darker green when selected
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-    love.graphics.print(crtText, crtX, crtY)
-
-    -- Draw arrow indicators for CRT effect selection when selected
-    if game.optionsSelection == 2 then
-        -- Left arrow
-        love.graphics.polygon('fill',
-            crtX - 20, crtY + scoreFont:getHeight()/2,
-            crtX - 10, crtY + scoreFont:getHeight()/2 - 5,
-            crtX - 10, crtY + scoreFont:getHeight()/2 + 5
-        )
-        -- Right arrow
-        love.graphics.polygon('fill',
-            crtX + crtTextWidth + 20, crtY + scoreFont:getHeight()/2,
-            crtX + crtTextWidth + 10, crtY + scoreFont:getHeight()/2 - 5,
-            crtX + crtTextWidth + 10, crtY + scoreFont:getHeight()/2 + 5
-        )
-    end
-
-    -- Draw effect description
+    -- Draw effect description first to calculate total height
     local description = ""
     if settings.crtEffect == "OFF" then
         description = "Screen curvature only"
@@ -113,17 +110,58 @@ function options.draw(game, settings)
 
     local descriptionWidth = scoreFont:getWidth(description)
     local descriptionX = (love.graphics.getWidth() - descriptionWidth) / 2
-    love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
-    love.graphics.print(description, descriptionX, crtY + scoreFont:getHeight() + 5)
+    local descriptionY = crtY + scoreFont:getHeight() + 5
+
+    -- Draw selection rectangle for CRT Effect option (taller to include description)
+    local crtSelectionWidth = crtTextWidth + 80
+    local crtSelectionHeight = scoreFont:getHeight() * 2 + 20  -- Tall enough for both lines
+    local crtSelectionX = (love.graphics.getWidth() - crtSelectionWidth) / 2
+    local crtSelectionY = crtY - 10
+
+    if settings.selectedOption == 2 then
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", crtSelectionX, crtSelectionY, crtSelectionWidth, crtSelectionHeight, 4)
+        love.graphics.setColor(0.75, 0.85, 0.65)
+    else
+        love.graphics.setColor(0.2, 0.2, 0.2)
+    end
+
+    -- Draw CRT text
+    love.graphics.print(crtText, crtX, crtY)
+
+    -- Draw arrow indicators for CRT effect selection when selected
+    if settings.selectedOption == 2 then
+        -- Left arrow (inverted color when selected)
+        love.graphics.setColor(0.75, 0.85, 0.65)
+        love.graphics.polygon('fill',
+            crtX - 30, crtY + scoreFont:getHeight()/2,
+            crtX - 15, crtY + scoreFont:getHeight()/2 - 10,
+            crtX - 15, crtY + scoreFont:getHeight()/2 + 10
+        )
+        -- Right arrow (inverted color when selected)
+        love.graphics.polygon('fill',
+            crtX + crtTextWidth + 30, crtY + scoreFont:getHeight()/2,
+            crtX + crtTextWidth + 15, crtY + scoreFont:getHeight()/2 - 10,
+            crtX + crtTextWidth + 15, crtY + scoreFont:getHeight()/2 + 10
+        )
+    end
+
+    -- Draw effect description (with inverted color when selected)
+    if settings.selectedOption == 2 then
+        love.graphics.setColor(0.75, 0.85, 0.65, 0.8)
+    else
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+    end
+    love.graphics.print(description, descriptionX, descriptionY)
 
     -- Option 3: BACK button
-    local backBtn = {x = (love.graphics.getWidth() - 140) / 2, y = sliderY + sliderHeight + 80, width = 140, height = 40}
+    local backBtn = {x = (love.graphics.getWidth() - 140) / 2, y = crtY + optionSpacing, width = 140, height = 40}
 
-    -- Draw back button with different style when selected
-    if game.optionsSelection == 3 or isMouseOver(game.mouseX, game.mouseY, backBtn) then
-        love.graphics.setColor(0.1, 0.4, 0.1) -- Darker green when selected
+    -- Draw back button like the main menu (no larger rectangle)
+    if settings.selectedOption == 3 or isMouseOver(game.mouseX, game.mouseY, backBtn) then
+        love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.rectangle("fill", backBtn.x, backBtn.y, backBtn.width, backBtn.height, 4, 4)
-        love.graphics.setColor(0.75, 0.85, 0.65) -- Light green text
+        love.graphics.setColor(0.75, 0.85, 0.65)
     else
         love.graphics.setColor(0.2, 0.2, 0.2)
         love.graphics.rectangle("line", backBtn.x, backBtn.y, backBtn.width, backBtn.height, 4, 4)
@@ -148,30 +186,42 @@ function options.mousepressed(game, settings, x, y, button)
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         local titleY = screenHeight / 4
-        local startY = titleY + gameOverFont:getHeight() + 40
+        local startY = titleY + gameOverFont:getHeight() + 50
+        local optionSpacing = 80
         local sliderWidth = 200
         local sliderHeight = 20
         local sfxTextHeight = scoreFont:getHeight()
         local sliderX = (screenWidth - sliderWidth) / 2
-        local sliderY = startY + sfxTextHeight + 10
+        local sliderY = startY + sfxTextHeight + 15
 
-        -- Define interactive areas
-        -- SFX slider area (Option 1)
-        local sliderArea = { x = sliderX, y = sliderY, width = sliderWidth, height = sliderHeight }
+        -- Define interactive areas to match the larger visual highlights
+        -- SFX slider area (Option 1) - wider and taller to match the visual highlight
+        local sfxText = string.format("SFX Volume: %d%%", settings.sfxVolume * 100)
+        local sfxTextWidth = scoreFont:getWidth(sfxText)
+        local sfxX = (screenWidth - sfxTextWidth) / 2
+        local selectionWidth = sliderWidth + 60
+        local selectionHeight = scoreFont:getHeight() + sliderHeight + 45
+        local selectionX = (screenWidth - selectionWidth) / 2
+        local selectionY = startY - 15
+        local sliderArea = { x = selectionX, y = selectionY, width = selectionWidth, height = selectionHeight }
 
-        -- CRT toggle area (Option 2)
+        -- CRT toggle area (Option 2) - taller to include description text
         local crtText = string.format("CRT Effect: %s", settings.crtEffect)
         local crtTextWidth = scoreFont:getWidth(crtText)
         local crtX = (screenWidth - crtTextWidth) / 2
-        local crtY = sliderY + sliderHeight + 30
-        local crtArea = { x = crtX, y = crtY, width = crtTextWidth + 40, height = scoreFont:getHeight() }
+        local crtY = startY + optionSpacing
+        local crtSelectionWidth = crtTextWidth + 80
+        local crtSelectionHeight = scoreFont:getHeight() * 2 + 20
+        local crtSelectionX = (screenWidth - crtSelectionWidth) / 2
+        local crtSelectionY = crtY - 10
+        local crtArea = { x = crtSelectionX, y = crtSelectionY, width = crtSelectionWidth, height = crtSelectionHeight }
 
-        -- BACK button area (Option 3)
-        local backBtn = { x = (screenWidth - 140) / 2, y = sliderY + sliderHeight + 80, width = 140, height = 40 }
+        -- BACK button area (Option 3) - same size as visual (like main menu)
+        local backBtn = { x = (screenWidth - 140) / 2, y = crtY + optionSpacing, width = 140, height = 40 }
 
         -- Check if click is in the SFX slider area
         if isMouseOver(x, y, sliderArea) then
-            game.optionsSelection = 1
+            settings.selectedOption = 1
             settings.sfxVolume = math.min(1, math.max(0, (x - sliderArea.x) / sliderArea.width))
             settings.updateSoundVolumes(game.sounds)
             return
@@ -179,53 +229,53 @@ function options.mousepressed(game, settings, x, y, button)
 
         -- Check if click is in the CRT toggle area
         if isMouseOver(x, y, crtArea) then
-            game.optionsSelection = 2
+            settings.selectedOption = 2
             settings.crtEffect = not settings.crtEffect
             return
         end
 
         -- Check if click is in the BACK button area
         if isMouseOver(x, y, backBtn) then
-            game.optionsSelection = 3
+            settings.selectedOption = 3
             game.state = "menu"
             return
         end
 
         -- Update selection based on Y position
         if y < crtY then
-            game.optionsSelection = 1
+            settings.selectedOption = 1
         elseif y < backBtn.y then
-            game.optionsSelection = 2
+            settings.selectedOption = 2
         else
-            game.optionsSelection = 3
+            settings.selectedOption = 3
         end
     end
 end
 
 function options.keypressed(game, settings, key)
-    if not game.optionsSelection then game.optionsSelection = 1 end
+    if not settings.selectedOption then settings.selectedOption = 1 end
     if key == "up" or key == "w" then
-        game.optionsSelection = game.optionsSelection - 1
-        if game.optionsSelection < 1 then game.optionsSelection = 3 end
+        settings.selectedOption = settings.selectedOption - 1
+        if settings.selectedOption < 1 then settings.selectedOption = 3 end
     elseif key == "down" or key == "s" then
-        game.optionsSelection = game.optionsSelection + 1
-        if game.optionsSelection > 3 then game.optionsSelection = 1 end
+        settings.selectedOption = settings.selectedOption + 1
+        if settings.selectedOption > 3 then settings.selectedOption = 1 end
     elseif key == "left" or key == "a" then
-        if game.optionsSelection == 1 then
+        if settings.selectedOption == 1 then
             settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
             settings.updateSoundVolumes(game.sounds)
-        elseif game.optionsSelection == 2 then
+        elseif settings.selectedOption == 2 then
             settings.previousCrtEffect()
         end
     elseif key == "right" or key == "d" then
-        if game.optionsSelection == 1 then
+        if settings.selectedOption == 1 then
             settings.sfxVolume = math.min(1, settings.sfxVolume + 0.1)
             settings.updateSoundVolumes(game.sounds)
-        elseif game.optionsSelection == 2 then
+        elseif settings.selectedOption == 2 then
             settings.nextCrtEffect()
         end
     elseif key == "return" or key == "enter" or key == "space" then
-        if game.optionsSelection == 3 then
+        if settings.selectedOption == 3 then
             game.state = "menu"
         end
     elseif key == "escape" then

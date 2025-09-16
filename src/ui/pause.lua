@@ -1,86 +1,76 @@
 local pause = {}
 
-local titleFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 48)
-local buttonFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 24)
+local titleFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+local buttonFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
 
-local function drawButton(text, y, selected)
-    local screenWidth = love.graphics.getWidth()
-    local buttonWidth = 200
-    local buttonHeight = 40
-    local x = (screenWidth - buttonWidth) / 2
-
-    -- Draw button background
-    love.graphics.setColor(0, 0, 0, 0.8)
-    love.graphics.rectangle("fill", x, y - buttonHeight/2, buttonWidth, buttonHeight)
-
-    -- Draw button border
+local function drawButton(text, btn, selected)
+    love.graphics.setColor(0.2, 0.2, 0.2)
     if selected then
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle('fill', btn.x, btn.y, btn.width, btn.height, 4, 4)
+        love.graphics.setColor(0.75, 0.85, 0.65)
     else
-        love.graphics.setColor(0.5, 0.5, 0.5, 1)
+        love.graphics.rectangle('line', btn.x, btn.y, btn.width, btn.height, 4, 4)
+        love.graphics.setColor(0.2, 0.2, 0.2)
     end
-    love.graphics.rectangle("line", x, y - buttonHeight/2, buttonWidth, buttonHeight)
 
-    -- Draw button text
     love.graphics.setFont(buttonFont)
     local textWidth = buttonFont:getWidth(text)
-    local textX = (screenWidth - textWidth) / 2
-    love.graphics.print(text, textX, y - buttonFont:getHeight()/2)
+    local textX = btn.x + (btn.width - textWidth) / 2
+    local textY = btn.y + (btn.height - buttonFont:getHeight()) / 2
+    love.graphics.print(text, textX, textY)
 end
 
 function pause.draw(game)
-    -- Draw semi-transparent overlay
-    love.graphics.setColor(0, 0, 0, 0.7)
+    -- Draw 50% overlay
+    love.graphics.setColor(0, 0, 0, 0.2)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
-    -- Draw title
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.setFont(titleFont)
     local titleText = "PAUSED"
     local titleWidth = titleFont:getWidth(titleText)
-    local screenWidth = love.graphics.getWidth()
-    local screenHeight = love.graphics.getHeight()
-    love.graphics.print(titleText, (screenWidth - titleWidth) / 2, screenHeight / 4)
+    local titleX = (love.graphics.getWidth() - titleWidth) / 2
+    local titleY = love.graphics.getHeight() / 4
+    love.graphics.print(titleText, titleX, titleY)
 
     -- Draw buttons
-    local centerY = screenHeight / 2
-    local spacing = 20
+    local centerX = love.graphics.getWidth() / 2
+    local btnY = titleY + titleFont:getHeight() + 40
+    local btnSpacing = 50
+    local btnWidth = 140
+    local btnHeight = 40
+    local resumeBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
+    local optionsBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
+    local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
 
-    drawButton("RESUME", centerY, game.pauseSelection == 1)
-    drawButton("OPTIONS", centerY + spacing + 40, game.pauseSelection == 2)
-    drawButton("QUIT", centerY + spacing*2 + 80, game.pauseSelection == 3)
-
-    -- Draw mouse cursor
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.circle("fill", game.mouseX, game.mouseY, 3)
+    drawButton("RESUME", resumeBtn, game.pauseSelection == 1)
+    drawButton("OPTIONS", optionsBtn, game.pauseSelection == 2)
+    drawButton("QUIT", quitBtn, game.pauseSelection == 3)
 end
 
 function pause.mousepressed(game, x, y, button)
     if button == 1 then
+        local titleY = love.graphics.getHeight() / 4
+        local btnY = titleY + 32 + 40
+        local btnSpacing = 50
         local btnWidth = 140
         local btnHeight = 40
-        local btnSpacing = 20
-        local titleY = love.graphics.getHeight() / 3
-        local startY = titleY + love.graphics.newFont("assets/fonts/VGA New.ttf", 32):getHeight() + 40
 
-        for i = 1, 3 do
-            local btnY = startY + (i-1) * (btnHeight + btnSpacing)
-            local btnX = (love.graphics.getWidth() - btnWidth) / 2
-            local area = {x = btnX, y = btnY, width = btnWidth, height = btnHeight}
+        local resumeBtn = {x = (love.graphics.getWidth() - btnWidth)/2, y = btnY, width = btnWidth, height = btnHeight}
+        local optionsBtn = {x = (love.graphics.getWidth() - btnWidth)/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
+        local quitBtn = {x = (love.graphics.getWidth() - btnWidth)/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
 
-            if x >= area.x and x <= area.x + area.width and
-               y >= area.y and y <= area.y + area.height then
-                if i == 1 then  -- Resume
-                    game.paused = false
-                elseif i == 2 then  -- Options
-                    game.previousState = game.state
-                    game.state = "options"
-                elseif i == 3 then  -- Quit
-                    game.state = "menu"
-                    game.paused = false
-                end
-                return
-            end
+        if x >= resumeBtn.x and x <= resumeBtn.x + resumeBtn.width and
+           y >= resumeBtn.y and y <= resumeBtn.y + resumeBtn.height then
+            game.paused = false
+        elseif x >= optionsBtn.x and x <= optionsBtn.x + optionsBtn.width and
+               y >= optionsBtn.y and y <= optionsBtn.y + optionsBtn.height then
+            game.previousState = game.state
+            game.state = "options"
+        elseif x >= quitBtn.x and x <= quitBtn.x + quitBtn.width and
+               y >= quitBtn.y and y <= quitBtn.y + quitBtn.height then
+            game.state = "menu"
+            game.paused = false
         end
     end
 end

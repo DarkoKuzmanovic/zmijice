@@ -5,13 +5,14 @@ local options = require("src/ui/options")
 local gameOver = require("src/ui/gameOver")
 local highscoresUI = require("src/ui/highscores")
 local nameEntry = require("src/ui/nameEntry")
+local pause = require("src/ui/pause")
 
 local gameOverFont = nil
 local scoreFont = nil
 
 function render.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/hlazor_pixel.ttf", 16)
+    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
+    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
 
     -- Set fonts to use nearest-neighbor filtering for a crisp retro look
     gameOverFont:setFilter("nearest", "nearest")
@@ -95,6 +96,10 @@ function render.draw(game, settings, highscores)
         gameOver.draw(game, settings, highscores)
     else
         render.drawGame(game, settings)
+        -- Draw pause menu if game is paused
+        if game.paused then
+            pause.draw(game)
+        end
     end
 end
 
