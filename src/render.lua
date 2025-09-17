@@ -24,6 +24,7 @@ function render.load()
     gameOver.load()
     highscoresUI.load()
     nameEntry.load()
+    pause.load()
 end
 
 function render.drawHighScores(game, settings, highscores)
@@ -35,9 +36,11 @@ function render.drawGame(game, settings)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
 
+    local alpha = game.paused and 0.7 or 1.0
+
     -- Draw snake
     for _, segment in ipairs(game.snake) do
-        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.setColor(0.2, 0.2, 0.2, alpha)
         love.graphics.rectangle('fill',
             (segment.x - 1) * game.cell_size + 1,
             (segment.y - 1) * game.cell_size + 1,
@@ -52,10 +55,10 @@ function render.drawGame(game, settings)
     local blinkAlpha = 1
     if game.food and game.food.special then
         blinkAlpha = math.abs(math.sin(love.timer.getTime() * 10))
-        love.graphics.setColor(1, 1, 1, blinkAlpha)
+        love.graphics.setColor(1, 1, 1, blinkAlpha * alpha)
         love.graphics.draw(game.foodImages.special, foodX, foodY)
     else
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(1, 1, 1, alpha)
         love.graphics.draw(game.foodImages.regular, foodX, foodY)
     end
 

@@ -1,15 +1,27 @@
 local gameOver = {}
 
-local gameOverFont = nil
-local scoreFont = nil
+local common = require("src/ui/common")
+local fonts = nil
+local buttons = {}
+local stateManager = common.StateManager:new()
 
 function gameOver.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
+    fonts = common.loadFonts()
+end
 
-    -- Set fonts to use nearest-neighbor filtering for a crisp retro look
-    gameOverFont:setFilter("nearest", "nearest")
-    scoreFont:setFilter("nearest", "nearest")
+-- Initialize buttons
+local function initButtons()
+    local y = love.graphics.getHeight() / 3
+    local scoreY = y + fonts.title:getHeight() + 20
+    local btnY = scoreY + fonts.button:getHeight() + 40
+    local btnWidth = 140
+    local btnHeight = 40
+    local btnSpacing = 20
+
+    buttons = {
+        common.Button:new((love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, btnY, btnWidth, btnHeight, "NEW GAME"),
+        common.Button:new(((love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2) + btnWidth + btnSpacing, btnY, btnWidth, btnHeight, "EXIT")
+    }
 end
 
 function gameOver.draw(game, settings, highscores)
@@ -19,61 +31,33 @@ function gameOver.draw(game, settings, highscores)
         game.deathSoundPlayed = true
     end
 
-    local canvas = settings.getCanvas()
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
+    local canvas = common.setupCanvas(settings)
 
     -- Draw "GAME OVER" text
-    love.graphics.setFont(gameOverFont)
+    love.graphics.setFont(fonts.title)
     local gameOverMsg = "GAME OVER"
-    local gameOverWidth = gameOverFont:getWidth(gameOverMsg)
+    local gameOverWidth = fonts.title:getWidth(gameOverMsg)
     local x = (love.graphics.getWidth() - gameOverWidth) / 2
     local y = love.graphics.getHeight() / 3
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.print(gameOverMsg, x, y)
 
     -- Draw final score
-    love.graphics.setFont(scoreFont)
+    love.graphics.setFont(fonts.button)
     local scoreMsg = string.format("FINAL SCORE: %04d", game.score)
-    local scoreWidth = scoreFont:getWidth(scoreMsg)
+    local scoreWidth = fonts.button:getWidth(scoreMsg)
     local scoreX = (love.graphics.getWidth() - scoreWidth) / 2
-    local scoreY = y + gameOverFont:getHeight() + 20
+    local scoreY = y + fonts.title:getHeight() + 20
     love.graphics.print(scoreMsg, scoreX, scoreY)
 
-    -- Draw buttons
-    local btnY = scoreY + scoreFont:getHeight() + 40
-    local btnWidth = 140
-    local btnHeight = 40
-    local btnSpacing = 20
-
-    local newGameBtn = {x = (love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, y = btnY, width = btnWidth, height = btnHeight}
-    local exitBtn = {x = newGameBtn.x + btnWidth + btnSpacing, y = btnY, width = btnWidth, height = btnHeight}
-
-    -- Helper function to check if mouse is over a button
-    local function isMouseOver(btn)
-        return game.mouseX >= btn.x and game.mouseX <= btn.x + btn.width and
-               game.mouseY >= btn.y and game.mouseY <= btn.y + btn.height
+    -- Initialize buttons if not already done
+    if #buttons == 0 then
+        initButtons()
     end
 
-    local buttons = {
-        {btn = newGameBtn, text = "NEW GAME", selected = game.menuSelection == 1},
-        {btn = exitBtn, text = "EXIT", selected = game.menuSelection == 2}
-    }
-
-    for _, button in ipairs(buttons) do
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        if button.selected or isMouseOver(button.btn) then
-            love.graphics.rectangle('fill', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
-            love.graphics.setColor(0.75, 0.85, 0.65)
-        else
-            love.graphics.rectangle('line', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
-            love.graphics.setColor(0.2, 0.2, 0.2)
-        end
-
-        local textWidth = scoreFont:getWidth(button.text)
-        local textX = button.btn.x + (button.btn.width - textWidth) / 2
-        local textY = button.btn.y + (button.btn.height - scoreFont:getHeight()) / 2
-        love.graphics.print(button.text, textX, textY)
+    -- Draw buttons
+    for i, button in ipairs(buttons) do
+        button:draw(fonts, i == stateManager:getSelection(), button:isMouseOver(game.mouseX, game.mouseY))
     end
 
     love.graphics.setCanvas()
@@ -85,63 +69,56 @@ end
 
 function gameOver.mousepressed(game, highscores, x, y, button)
     if button == 1 then
-        local btnY = (love.graphics.getHeight() / 3) + gameOverFont:getHeight() + scoreFont:getHeight() + 60
-        local btnWidth = 140
-        local btnHeight = 40
-        local btnSpacing = 20
+        -- Initialize buttons if not already done
+        if #buttons == 0 then
+            initButtons()
+        end
 
-        local newGameBtn = {x = (love.graphics.getWidth() - btnWidth*2 - btnSpacing) / 2, y = btnY, width = btnWidth, height = btnHeight}
-        local exitBtn = {x = newGameBtn.x + btnWidth + btnSpacing, y = btnY, width = btnWidth, height = btnHeight}
-
-        if x >= newGameBtn.x and x <= newGameBtn.x + newGameBtn.width and
-           y >= newGameBtn.y and y <= newGameBtn.y + newGameBtn.height then
-            game.menuSelection = 1
-            if highscores.isHighScore(game.score) then
-                -- Initialize name entry
-                game.nameEntry.active = true
-                game.nameEntry.name = "AAA"
-                game.nameEntry.position = 1
-                if game.sounds and game.sounds.confirm then
-                    game.sounds.confirm:stop()
-                    game.sounds.confirm:play()
+        for i, btn in ipairs(buttons) do
+            if btn:isMouseOver(x, y) then
+                stateManager:setSelection(i)
+                if i == 1 then
+                    if highscores.isHighScore(game.score) then
+                        -- Initialize name entry
+                        game.nameEntry.active = true
+                        game.nameEntry.name = "AAA"
+                        game.nameEntry.position = 1
+                        if game.sounds and game.sounds.confirm then
+                            game.sounds.confirm:stop()
+                            game.sounds.confirm:play()
+                        end
+                    else
+                        game.reset()
+                        if game.sounds and game.sounds.confirm then
+                            game.sounds.confirm:stop()
+                            game.sounds.confirm:play()
+                        end
+                    end
+                elseif i == 2 then
+                    love.event.quit()
                 end
-            else
-                game.reset()
-                if game.sounds and game.sounds.confirm then
-                    game.sounds.confirm:stop()
-                    game.sounds.confirm:play()
-                end
+                break
             end
-        elseif x >= exitBtn.x and x <= exitBtn.x + exitBtn.width and
-               y >= exitBtn.y and y <= exitBtn.y + exitBtn.height then
-            game.menuSelection = 2
-            love.event.quit()
         end
     end
 end
 
 function gameOver.keypressed(game, highscores, key)
-    -- Initialize selection if not set
-    if game.menuSelection == nil then
-        game.menuSelection = 1
-    end
-
     if key == "up" or key == "w" or key == "left" or key == "a" then
-        game.menuSelection = game.menuSelection - 1
-        if game.menuSelection < 1 then game.menuSelection = 2 end
+        stateManager:moveUp(#buttons)
         if game.sounds and game.sounds.select then
             game.sounds.select:stop()
             game.sounds.select:play()
         end
     elseif key == "down" or key == "s" or key == "right" or key == "d" then
-        game.menuSelection = game.menuSelection + 1
-        if game.menuSelection > 2 then game.menuSelection = 1 end
+        stateManager:moveDown(#buttons)
         if game.sounds and game.sounds.select then
             game.sounds.select:stop()
             game.sounds.select:play()
         end
     elseif key == "return" or key == "enter" or key == "space" then
-        if game.menuSelection == 1 then
+        local selection = stateManager:getSelection()
+        if selection == 1 then
             if highscores.isHighScore(game.score) then
                 -- Initialize name entry
                 game.nameEntry.active = true
@@ -158,7 +135,7 @@ function gameOver.keypressed(game, highscores, key)
                     game.sounds.confirm:play()
                 end
             end
-        elseif game.menuSelection == 2 then
+        elseif selection == 2 then
             love.event.quit()
         end
     elseif key == "escape" or key == "q" then

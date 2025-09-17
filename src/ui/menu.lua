@@ -1,78 +1,61 @@
 local menu = {}
 
-local gameOverFont = nil
-local scoreFont = nil
+local common = require("src/ui/common")
+local fonts = nil
+local buttons = {}
+local stateManager = common.StateManager:new()
 
 function menu.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
+    fonts = common.loadFonts()
+end
 
-    -- Set fonts to use nearest-neighbor filtering for a crisp retro look
-    gameOverFont:setFilter("nearest", "nearest")
-    scoreFont:setFilter("nearest", "nearest")
+-- Initialize buttons
+local function initButtons()
+    local centerX = love.graphics.getWidth() / 2
+    local titleY = love.graphics.getHeight() / 4
+    local btnY = titleY + fonts.title:getHeight() + 40
+    local btnSpacing = 50
+    local btnWidth = 140
+    local btnHeight = 40
+
+    buttons = {
+        common.Button:new(centerX - btnWidth/2, btnY, btnWidth, btnHeight, "PLAY"),
+        common.Button:new(centerX - btnWidth/2, btnY + btnSpacing, btnWidth, btnHeight, "OPTIONS"),
+        common.Button:new(centerX - btnWidth/2, btnY + btnSpacing * 2, btnWidth, btnHeight, "HIGHSCORES"),
+        common.Button:new(centerX - btnWidth/2, btnY + btnSpacing * 3, btnWidth, btnHeight, "QUIT")
+    }
 end
 
 function menu.draw(game, settings)
-    local canvas = settings.getCanvas()
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
+    -- Initialize buttons if not already done
+    if #buttons == 0 then
+        initButtons()
+    end
+
+    local canvas = common.setupCanvas(settings)
 
     -- Draw Title
-    love.graphics.setFont(gameOverFont)
+    love.graphics.setFont(fonts.title)
     local title = "ZMIJICE"
-    local titleWidth = gameOverFont:getWidth(title)
+    local titleWidth = fonts.title:getWidth(title)
     local titleX = (love.graphics.getWidth() - titleWidth) / 2
     local titleY = love.graphics.getHeight() / 4
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.print(title, titleX, titleY)
 
     -- Draw buttons with LCD style
-    local centerX = love.graphics.getWidth() / 2
-    local btnY = titleY + gameOverFont:getHeight() + 40
-    local btnSpacing = 50
-    local btnWidth = 140
-    local btnHeight = 40
-    -- Update button positions to accommodate the new button
-    local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
-    local optionsBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
-    local highscoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}  -- Add this
-    local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 3, width = btnWidth, height = btnHeight}  -- Update position
-    love.graphics.setFont(scoreFont)
+    love.graphics.setFont(fonts.button)
 
-    local buttons = {
-        {btn = playBtn, text = "PLAY", selected = game.menuSelection == 1},
-        {btn = optionsBtn, text = "OPTIONS", selected = game.menuSelection == 2},
-        {btn = highscoresBtn, text = "HIGHSCORES", selected = game.menuSelection == 3},
-        {btn = quitBtn, text = "QUIT", selected = game.menuSelection == 4}
-    }
-
-    local function isMouseOver(btn)
-        return game.mouseX >= btn.x and game.mouseX <= btn.x + btn.width and
-               game.mouseY >= btn.y and game.mouseY <= btn.y + btn.height
-    end
-
-    for _, button in ipairs(buttons) do
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        if button.selected or isMouseOver(button.btn) then
-            love.graphics.rectangle('fill', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
-            love.graphics.setColor(0.75, 0.85, 0.65)
-        else
-            love.graphics.rectangle('line', button.btn.x, button.btn.y, button.btn.width, button.btn.height, 4, 4)
-            love.graphics.setColor(0.2, 0.2, 0.2)
-        end
-
-        local textWidth = scoreFont:getWidth(button.text)
-        local textX = button.btn.x + (button.btn.width - textWidth) / 2
-        local textY = button.btn.y + (button.btn.height - scoreFont:getHeight()) / 2
-        love.graphics.print(button.text, textX, textY)
+    for i, button in ipairs(buttons) do
+        button:draw(fonts, i == stateManager:getSelection(), button:isMouseOver(game.mouseX, game.mouseY))
     end
 
     -- Draw copyright notice
     love.graphics.setColor(0.2, 0.2, 0.2)
     local copyright = "(C) 2025 ZMIJICE v1.0.0 - Darko Kuzmanovic for Lenkalica"
-    local copyrightWidth = scoreFont:getWidth(copyright)
+    local copyrightWidth = fonts.button:getWidth(copyright)
     local copyrightX = (love.graphics.getWidth() - copyrightWidth) / 2
-    local copyrightY = love.graphics.getHeight() - scoreFont:getHeight() - 20
+    local copyrightY = love.graphics.getHeight() - fonts.button:getHeight() - 20
     love.graphics.print(copyright, copyrightX, copyrightY)
 
     love.graphics.setCanvas()
@@ -84,19 +67,18 @@ end
 
 function menu.keypressed(game, key)
     if key == "up" or key == "w" then
-        game.menuSelection = game.menuSelection - 1
-        if game.menuSelection < 1 then game.menuSelection = 4 end
+        stateManager:moveUp(#buttons)
     elseif key == "down" or key == "s" then
-        game.menuSelection = game.menuSelection + 1
-        if game.menuSelection > 4 then game.menuSelection = 1 end
+        stateManager:moveDown(#buttons)
     elseif key == "return" or key == "enter" then
-        if game.menuSelection == 1 then
+        local selection = stateManager:getSelection()
+        if selection == 1 then
             game.reset()
-        elseif game.menuSelection == 2 then
+        elseif selection == 2 then
             game.state = "options"
-        elseif game.menuSelection == 3 then
+        elseif selection == 3 then
             game.state = "highscores"
-        elseif game.menuSelection == 4 then
+        elseif selection == 4 then
             love.event.quit()
         end
     elseif key == "escape" or key == "q" then
@@ -106,30 +88,25 @@ end
 
 function menu.mousepressed(game, x, y, button)
     if button == 1 then
-        local centerX = love.graphics.getWidth() / 2
-        local titleY = love.graphics.getHeight() / 4
-        local btnY = titleY + gameOverFont:getHeight() + 40
-        local btnSpacing = 50
-        local btnWidth = 140
-        local btnHeight = 40
+        -- Initialize buttons if not already done
+        if #buttons == 0 then
+            initButtons()
+        end
 
-        local playBtn = {x = centerX - btnWidth/2, y = btnY, width = btnWidth, height = btnHeight}
-        local optionsBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing, width = btnWidth, height = btnHeight}
-        local highscoresBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 2, width = btnWidth, height = btnHeight}
-        local quitBtn = {x = centerX - btnWidth/2, y = btnY + btnSpacing * 3, width = btnWidth, height = btnHeight}
-
-        if x >= playBtn.x and x <= playBtn.x + playBtn.width and
-           y >= playBtn.y and y <= playBtn.y + playBtn.height then
-            game.reset()
-        elseif x >= optionsBtn.x and x <= optionsBtn.x + optionsBtn.width and
-               y >= optionsBtn.y and y <= optionsBtn.y + optionsBtn.height then
-            game.state = "options"
-        elseif x >= highscoresBtn.x and x <= highscoresBtn.x + highscoresBtn.width and
-               y >= highscoresBtn.y and y <= highscoresBtn.y + highscoresBtn.height then
-            game.state = "highscores"
-        elseif x >= quitBtn.x and x <= quitBtn.x + quitBtn.width and
-               y >= quitBtn.y and y <= quitBtn.y + quitBtn.height then
-            love.event.quit()
+        for i, btn in ipairs(buttons) do
+            if btn:isMouseOver(x, y) then
+                stateManager:setSelection(i)
+                if i == 1 then
+                    game.reset()
+                elseif i == 2 then
+                    game.state = "options"
+                elseif i == 3 then
+                    game.state = "highscores"
+                elseif i == 4 then
+                    love.event.quit()
+                end
+                break
+            end
         end
     end
 end

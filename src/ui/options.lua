@@ -1,285 +1,300 @@
 local options = {}
 
-local gameOverFont = nil
-local scoreFont = nil
+local common = require("src/ui/common")
+local fonts
+local sfxSlider
+local crtToggle
+local backButton
+local layout
+local stateManager = common.StateManager:new()
 
-function options.load()
-    gameOverFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 32)
-    scoreFont = love.graphics.newFont("assets/fonts/IBM_VGA_8x16.ttf", 16)
+local COLOR_DARK = {0.2, 0.2, 0.2}
+local COLOR_ACCENT = {0.9, 1.0, 0.7}
+local COLOR_MUTED = {0.2, 0.2, 0.2, 0.75}
 
-    -- Set fonts to use nearest-neighbor filtering for a crisp retro look
-    gameOverFont:setFilter("nearest", "nearest")
-    scoreFont:setFilter("nearest", "nearest")
+local CRT_DESCRIPTIONS = {
+    OFF = "Screen curvature only",
+    CLASSIC = "Standard CRT look",
+    HEAVY = "Maximum retro effect"
+}
+
+local function resetUI()
+    sfxSlider = nil
+    crtToggle = nil
+    backButton = nil
+    layout = nil
 end
 
--- Helper function to check if mouse is over an area
-local function isMouseOver(x, y, area)
-    return x >= area.x and x <= area.x + area.width and
-           y >= area.y and y <= area.y + area.height
+function options.load()
+    fonts = common.loadFonts()
+    resetUI()
+    stateManager:setSelection(1)
+end
+
+local function getCrtIndex(effect)
+    if effect == "CLASSIC" then
+        return 2
+    elseif effect == "HEAVY" then
+        return 3
+    end
+    return 1
+end
+
+local function ensureUI(settings)
+    if not fonts then
+        options.load()
+    end
+
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+
+    if not layout or layout.screenW ~= screenW or layout.screenH ~= screenH then
+        local titleY = screenH / 4
+        local titleHeight = fonts.title:getHeight()
+        local rowSpacing = 24
+        local rowWidth = math.min(380, screenW - 80)
+        rowWidth = math.max(rowWidth, 240)
+        local rowX = (screenW - rowWidth) / 2
+
+        local buttonHeight = fonts.button:getHeight()
+        local sliderHeight = 18
+        local toggleHeight = 32
+        local sliderRowHeight = math.max(buttonHeight * 4, buttonHeight * 2 + sliderHeight + 24)
+        local toggleRowHeight = math.max(buttonHeight * 5, 3 * buttonHeight + toggleHeight + 22)
+
+        local sliderRowY = titleY + titleHeight + 40
+        local toggleRowY = sliderRowY + sliderRowHeight + rowSpacing
+        local backButtonY = toggleRowY + toggleRowHeight + rowSpacing
+
+        layout = {
+            screenW = screenW,
+            screenH = screenH,
+            titleY = titleY,
+            sliderRow = { x = rowX, y = sliderRowY, width = rowWidth, height = sliderRowHeight },
+            toggleRow = { x = rowX, y = toggleRowY, width = rowWidth, height = toggleRowHeight },
+            backButton = { x = rowX, y = backButtonY, width = rowWidth, height = 40 }
+        }
+
+        local sliderWidth = rowWidth - 64
+        local sliderX = rowX + (rowWidth - sliderWidth) / 2
+        local sliderY = sliderRowY + buttonHeight * 2
+        sfxSlider = common.Slider:new(sliderX, sliderY, sliderWidth, sliderHeight, settings.sfxVolume, 0, 1)
+
+        local crtWidth = rowWidth - 64
+        local crtX = rowX + (rowWidth - crtWidth) / 2
+        local crtY = toggleRowY + buttonHeight * 2
+        crtToggle = common.Toggle:new(crtX, crtY, crtWidth, toggleHeight, getCrtIndex(settings.crtEffect), {"OFF", "CLASSIC", "HEAVY"})
+
+        backButton = common.Button:new(layout.backButton.x, layout.backButton.y, layout.backButton.width, layout.backButton.height, "BACK")
+    end
+
+    sfxSlider:setValue(settings.sfxVolume or 0)
+    crtToggle:setValue(getCrtIndex(settings.crtEffect))
+end
+
+local function applyCrtSelection(settings)
+    local crtValue = crtToggle:getValue()
+    if crtValue == 1 then
+        settings.crtEffect = "OFF"
+    elseif crtValue == 2 then
+        settings.crtEffect = "CLASSIC"
+    elseif crtValue == 3 then
+        settings.crtEffect = "HEAVY"
+    end
+    settings.updateShaderValues()
+    settings.save()
+end
+
+local function drawOptionPanel(bounds, isSelected, isHovered)
+    love.graphics.setLineWidth(1)
+    if isSelected then
+        love.graphics.setColor(COLOR_DARK)
+        love.graphics.rectangle("fill", bounds.x - 2, bounds.y - 2, bounds.width + 4, bounds.height + 4)
+        love.graphics.setColor(COLOR_ACCENT)
+        love.graphics.rectangle("line", bounds.x - 2, bounds.y - 2, bounds.width + 4, bounds.height + 4)
+    else
+        love.graphics.setColor(COLOR_DARK)
+        love.graphics.rectangle("line", bounds.x, bounds.y, bounds.width, bounds.height)
+        if isHovered then
+            love.graphics.setColor(COLOR_ACCENT)
+            love.graphics.rectangle("line", bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2)
+        end
+    end
 end
 
 function options.draw(game, settings)
-    local canvas = settings.getCanvas()
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0.75, 0.85, 0.65) -- LCD green background
+    ensureUI(settings)
 
-    love.graphics.setFont(gameOverFont)
+    local canvas = common.setupCanvas(settings)
+
+    love.graphics.setFont(fonts.title)
     local title = "OPTIONS"
-    local titleWidth = gameOverFont:getWidth(title)
+    local titleWidth = fonts.title:getWidth(title)
     local titleX = (love.graphics.getWidth() - titleWidth) / 2
-    local titleY = love.graphics.getHeight() / 4
-    love.graphics.setColor(0.2, 0.2, 0.2)
+    local titleY = layout.titleY
+    love.graphics.setColor(COLOR_DARK)
     love.graphics.print(title, titleX, titleY)
 
-    love.graphics.setFont(scoreFont)
-    local startY = titleY + gameOverFont:getHeight() + 50
-    local optionSpacing = 80  -- Increased spacing between options
+    love.graphics.setFont(fonts.button)
+    local selection = stateManager:getSelection()
+    local mouseX = game.mouseX or -1
+    local mouseY = game.mouseY or -1
 
-    -- Option 1: SFX Volume slider
-    local sfxText = string.format("SFX Volume: %d%%", settings.sfxVolume * 100)
-    local sfxTextWidth = scoreFont:getWidth(sfxText)
-    local sfxX = (love.graphics.getWidth() - sfxTextWidth) / 2
+    local sliderRow = layout.sliderRow
+    local sliderHovered = common.isMouseOver(mouseX, mouseY, sliderRow)
+    local sliderControlHovered = sfxSlider:isMouseOver(mouseX, mouseY)
 
-    local sliderWidth = 200
-    local sliderHeight = 20
-    local sliderX = (love.graphics.getWidth() - sliderWidth) / 2
-    local sliderY = startY + scoreFont:getHeight() + 15
+    drawOptionPanel(sliderRow, selection == 1, sliderHovered or sliderControlHovered)
 
-    -- Draw selection rectangle for SFX Volume option (wider and taller)
-    local selectionWidth = sliderWidth + 60
-    local selectionHeight = scoreFont:getHeight() + sliderHeight + 45
-    local selectionX = (love.graphics.getWidth() - selectionWidth) / 2
-    local selectionY = startY - 15
+    local volumePercent = math.floor((settings.sfxVolume or 0) * 100 + 0.5)
+    love.graphics.setColor(selection == 1 and COLOR_ACCENT or COLOR_DARK)
+    love.graphics.print("SFX VOLUME", sliderRow.x + 16, sliderRow.y + 12)
 
-    if settings.selectedOption == 1 then
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", selectionX, selectionY, selectionWidth, selectionHeight, 4)
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
+    local valueText = string.format("%03d%%", volumePercent)
+    love.graphics.print(valueText, sliderRow.x + sliderRow.width - fonts.button:getWidth(valueText) - 16, sliderRow.y + 12)
+
+    sfxSlider:draw(fonts, selection == 1, sliderControlHovered)
+
+    local toggleRow = layout.toggleRow
+    local toggleHovered = common.isMouseOver(mouseX, mouseY, toggleRow)
+    local toggleControlHovered = crtToggle:isMouseOver(mouseX, mouseY)
+
+    drawOptionPanel(toggleRow, selection == 2, toggleHovered or toggleControlHovered)
+
+    local toggleValue = crtToggle:getValueText()
+    love.graphics.setColor(selection == 2 and COLOR_ACCENT or COLOR_DARK)
+    love.graphics.print("CRT EFFECT", toggleRow.x + 16, toggleRow.y + 12)
+    love.graphics.print(toggleValue, toggleRow.x + toggleRow.width - fonts.button:getWidth(toggleValue) - 16, toggleRow.y + 12)
+
+    crtToggle:draw(fonts, selection == 2, toggleControlHovered)
+
+    local description = CRT_DESCRIPTIONS[toggleValue]
+    if description and description ~= "" then
+        love.graphics.setColor(selection == 2 and COLOR_ACCENT or COLOR_MUTED)
+        love.graphics.print(description, toggleRow.x + 16, crtToggle.y + crtToggle.height + 10)
     end
 
-    -- Draw volume text
-    love.graphics.print(sfxText, sfxX, startY)
-
-    -- Draw slider background (inverted color when selected)
-    if settings.selectedOption == 1 then
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-    love.graphics.rectangle("line", sliderX, sliderY, sliderWidth, sliderHeight, 4, 4)
-
-    -- Draw slider fill (inverted color when selected)
-    if settings.selectedOption == 1 then
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-    love.graphics.rectangle("fill", sliderX, sliderY, sliderWidth * settings.sfxVolume, sliderHeight, 4, 4)
-
-    -- Draw slider knob
-    local knobWidth = 8
-    local knobHeight = sliderHeight + 8
-    local knobX = sliderX + (sliderWidth * settings.sfxVolume) - (knobWidth / 2)
-    local knobY = sliderY - 4
-
-    -- Draw slider knob (inverted color when selected)
-    if settings.selectedOption == 1 then
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-    love.graphics.rectangle("fill", knobX, knobY, knobWidth, knobHeight, 2, 2)
-
-    -- Option 2: CRT Effect toggle
-    local crtText = string.format("CRT Effect: %s", settings.crtEffect)
-    local crtTextWidth = scoreFont:getWidth(crtText)
-    local crtX = (love.graphics.getWidth() - crtTextWidth) / 2
-    local crtY = startY + optionSpacing
-
-    -- Draw effect description first to calculate total height
-    local description = ""
-    if settings.crtEffect == "OFF" then
-        description = "Screen curvature only"
-    elseif settings.crtEffect == "CLASSIC" then
-        description = "Standard CRT look"
-    elseif settings.crtEffect == "HEAVY" then
-        description = "Maximum retro effect"
-    end
-
-    local descriptionWidth = scoreFont:getWidth(description)
-    local descriptionX = (love.graphics.getWidth() - descriptionWidth) / 2
-    local descriptionY = crtY + scoreFont:getHeight() + 5
-
-    -- Draw selection rectangle for CRT Effect option (taller to include description)
-    local crtSelectionWidth = crtTextWidth + 80
-    local crtSelectionHeight = scoreFont:getHeight() * 2 + 20  -- Tall enough for both lines
-    local crtSelectionX = (love.graphics.getWidth() - crtSelectionWidth) / 2
-    local crtSelectionY = crtY - 10
-
-    if settings.selectedOption == 2 then
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", crtSelectionX, crtSelectionY, crtSelectionWidth, crtSelectionHeight, 4)
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-
-    -- Draw CRT text
-    love.graphics.print(crtText, crtX, crtY)
-
-    -- Draw arrow indicators for CRT effect selection when selected
-    if settings.selectedOption == 2 then
-        -- Left arrow (inverted color when selected)
-        love.graphics.setColor(0.75, 0.85, 0.65)
-        love.graphics.polygon('fill',
-            crtX - 30, crtY + scoreFont:getHeight()/2,
-            crtX - 15, crtY + scoreFont:getHeight()/2 - 10,
-            crtX - 15, crtY + scoreFont:getHeight()/2 + 10
-        )
-        -- Right arrow (inverted color when selected)
-        love.graphics.polygon('fill',
-            crtX + crtTextWidth + 30, crtY + scoreFont:getHeight()/2,
-            crtX + crtTextWidth + 15, crtY + scoreFont:getHeight()/2 - 10,
-            crtX + crtTextWidth + 15, crtY + scoreFont:getHeight()/2 + 10
-        )
-    end
-
-    -- Draw effect description (with inverted color when selected)
-    if settings.selectedOption == 2 then
-        love.graphics.setColor(0.75, 0.85, 0.65, 0.8)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
-    end
-    love.graphics.print(description, descriptionX, descriptionY)
-
-    -- Option 3: BACK button
-    local backBtn = {x = (love.graphics.getWidth() - 140) / 2, y = crtY + optionSpacing, width = 140, height = 40}
-
-    -- Draw back button like the main menu (no larger rectangle)
-    if settings.selectedOption == 3 or isMouseOver(game.mouseX, game.mouseY, backBtn) then
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", backBtn.x, backBtn.y, backBtn.width, backBtn.height, 4, 4)
-        love.graphics.setColor(0.75, 0.85, 0.65)
-    else
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("line", backBtn.x, backBtn.y, backBtn.width, backBtn.height, 4, 4)
-        love.graphics.setColor(0.2, 0.2, 0.2)
-    end
-
-    local backText = "BACK"
-    local backTextWidth = scoreFont:getWidth(backText)
-    local backTextX = backBtn.x + (backBtn.width - backTextWidth) / 2
-    local backTextY = backBtn.y + (backBtn.height - scoreFont:getHeight()) / 2
-    love.graphics.print(backText, backTextX, backTextY)
+    local backHovered = backButton:isMouseOver(mouseX, mouseY)
+    backButton:draw(fonts, selection == 3, backHovered)
 
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)
-    if settings.crtEffect then love.graphics.setShader(settings.getShader()) end
+    if settings.isCrtEnabled() then love.graphics.setShader(settings.getShader()) end
     love.graphics.draw(canvas)
-    if settings.crtEffect then love.graphics.setShader() end
+    if settings.isCrtEnabled() then love.graphics.setShader() end
 end
 
 function options.mousepressed(game, settings, x, y, button)
-    if button == 1 then
-        local screenWidth = love.graphics.getWidth()
-        local screenHeight = love.graphics.getHeight()
-        local titleY = screenHeight / 4
-        local startY = titleY + gameOverFont:getHeight() + 50
-        local optionSpacing = 80
-        local sliderWidth = 200
-        local sliderHeight = 20
-        local sfxTextHeight = scoreFont:getHeight()
-        local sliderX = (screenWidth - sliderWidth) / 2
-        local sliderY = startY + sfxTextHeight + 15
+    if button ~= 1 then
+        return
+    end
 
-        -- Define interactive areas to match the larger visual highlights
-        -- SFX slider area (Option 1) - wider and taller to match the visual highlight
-        local sfxText = string.format("SFX Volume: %d%%", settings.sfxVolume * 100)
-        local sfxTextWidth = scoreFont:getWidth(sfxText)
-        local sfxX = (screenWidth - sfxTextWidth) / 2
-        local selectionWidth = sliderWidth + 60
-        local selectionHeight = scoreFont:getHeight() + sliderHeight + 45
-        local selectionX = (screenWidth - selectionWidth) / 2
-        local selectionY = startY - 15
-        local sliderArea = { x = selectionX, y = selectionY, width = selectionWidth, height = selectionHeight }
+    ensureUI(settings)
 
-        -- CRT toggle area (Option 2) - taller to include description text
-        local crtText = string.format("CRT Effect: %s", settings.crtEffect)
-        local crtTextWidth = scoreFont:getWidth(crtText)
-        local crtX = (screenWidth - crtTextWidth) / 2
-        local crtY = startY + optionSpacing
-        local crtSelectionWidth = crtTextWidth + 80
-        local crtSelectionHeight = scoreFont:getHeight() * 2 + 20
-        local crtSelectionX = (screenWidth - crtSelectionWidth) / 2
-        local crtSelectionY = crtY - 10
-        local crtArea = { x = crtSelectionX, y = crtSelectionY, width = crtSelectionWidth, height = crtSelectionHeight }
-
-        -- BACK button area (Option 3) - same size as visual (like main menu)
-        local backBtn = { x = (screenWidth - 140) / 2, y = crtY + optionSpacing, width = 140, height = 40 }
-
-        -- Check if click is in the SFX slider area
-        if isMouseOver(x, y, sliderArea) then
-            settings.selectedOption = 1
-            settings.sfxVolume = math.min(1, math.max(0, (x - sliderArea.x) / sliderArea.width))
-            settings.updateSoundVolumes(game.sounds)
-            return
+    if sfxSlider:isMouseOver(x, y) then
+        if stateManager:getSelection() ~= 1 then
+            stateManager:setSelection(1)
         end
+        sfxSlider:setValueFromMouse(x)
+        settings.sfxVolume = sfxSlider:getValue()
+        settings.updateSoundVolumes(game.sounds)
+        common.playSound(game.sounds, "select")
+        return
+    end
 
-        -- Check if click is in the CRT toggle area
-        if isMouseOver(x, y, crtArea) then
-            settings.selectedOption = 2
-            settings.crtEffect = not settings.crtEffect
-            return
+    if common.isMouseOver(x, y, layout.sliderRow) then
+        if stateManager:getSelection() ~= 1 then
+            stateManager:setSelection(1)
+            common.playSound(game.sounds, "select")
         end
+        return
+    end
 
-        -- Check if click is in the BACK button area
-        if isMouseOver(x, y, backBtn) then
-            settings.selectedOption = 3
-            game.state = "menu"
-            return
+    if crtToggle:isMouseOver(x, y) then
+        if stateManager:getSelection() ~= 2 then
+            stateManager:setSelection(2)
         end
+        crtToggle:next()
+        applyCrtSelection(settings)
+        common.playSound(game.sounds, "select")
+        return
+    end
 
-        -- Update selection based on Y position
-        if y < crtY then
-            settings.selectedOption = 1
-        elseif y < backBtn.y then
-            settings.selectedOption = 2
-        else
-            settings.selectedOption = 3
+    if common.isMouseOver(x, y, layout.toggleRow) then
+        if stateManager:getSelection() ~= 2 then
+            stateManager:setSelection(2)
+            common.playSound(game.sounds, "select")
         end
+        return
+    end
+
+    if backButton:isMouseOver(x, y) then
+        if stateManager:getSelection() ~= 3 then
+            stateManager:setSelection(3)
+        end
+        game.state = "menu"
+        common.playSound(game.sounds, "back")
     end
 end
 
 function options.keypressed(game, settings, key)
-    if not settings.selectedOption then settings.selectedOption = 1 end
+    ensureUI(settings)
+
     if key == "up" or key == "w" then
-        settings.selectedOption = settings.selectedOption - 1
-        if settings.selectedOption < 1 then settings.selectedOption = 3 end
+        stateManager:moveUp(3)
     elseif key == "down" or key == "s" then
-        settings.selectedOption = settings.selectedOption + 1
-        if settings.selectedOption > 3 then settings.selectedOption = 1 end
+        stateManager:moveDown(3)
     elseif key == "left" or key == "a" then
-        if settings.selectedOption == 1 then
-            settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
+        local selection = stateManager:getSelection()
+        if selection == 1 then
+            settings.sfxVolume = math.max(0, (settings.sfxVolume or 0) - 0.1)
             settings.updateSoundVolumes(game.sounds)
-        elseif settings.selectedOption == 2 then
-            settings.previousCrtEffect()
+            sfxSlider:setValue(settings.sfxVolume)
+            common.playSound(game.sounds, "select")
+        elseif selection == 2 then
+            crtToggle:previous()
+            applyCrtSelection(settings)
+            common.playSound(game.sounds, "select")
         end
     elseif key == "right" or key == "d" then
-        if settings.selectedOption == 1 then
-            settings.sfxVolume = math.min(1, settings.sfxVolume + 0.1)
+        local selection = stateManager:getSelection()
+        if selection == 1 then
+            settings.sfxVolume = math.min(1, (settings.sfxVolume or 0) + 0.1)
             settings.updateSoundVolumes(game.sounds)
-        elseif settings.selectedOption == 2 then
-            settings.nextCrtEffect()
+            sfxSlider:setValue(settings.sfxVolume)
+            common.playSound(game.sounds, "select")
+        elseif selection == 2 then
+            crtToggle:next()
+            applyCrtSelection(settings)
+            common.playSound(game.sounds, "select")
+        end
+    elseif key == "home" then
+        if stateManager:getSelection() == 1 then
+            settings.sfxVolume = 0
+            settings.updateSoundVolumes(game.sounds)
+            sfxSlider:setValue(settings.sfxVolume)
+            common.playSound(game.sounds, "select")
+        end
+    elseif key == "end" then
+        if stateManager:getSelection() == 1 then
+            settings.sfxVolume = 1
+            settings.updateSoundVolumes(game.sounds)
+            sfxSlider:setValue(settings.sfxVolume)
+            common.playSound(game.sounds, "select")
         end
     elseif key == "return" or key == "enter" or key == "space" then
-        if settings.selectedOption == 3 then
+        if stateManager:getSelection() == 3 then
             game.state = "menu"
+            common.playSound(game.sounds, "confirm")
         end
     elseif key == "escape" then
-        game.state = "menu"
+        if game.previousState then
+            game.state = game.previousState
+            game.previousState = nil
+        else
+            game.state = "menu"
+        end
+        common.playSound(game.sounds, "back")
     end
 end
 
