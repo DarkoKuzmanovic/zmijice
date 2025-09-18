@@ -84,6 +84,11 @@ function render.drawGame(game, settings)
     love.graphics.setFont(scoreFont)
     love.graphics.setColor(0.75, 0.85, 0.65)
     love.graphics.print("SCORE: " .. string.format("%04d", game.score), 10, 10)
+
+    -- Display level in top right corner
+    local levelText = "LEVEL: " .. tostring(game.level)
+    local levelTextWidth = scoreFont:getWidth(levelText)
+    love.graphics.print(levelText, love.graphics.getWidth() - levelTextWidth - 10, 10)
 end
 
 function render.draw(game, settings, highscores)

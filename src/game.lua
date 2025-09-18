@@ -9,7 +9,9 @@ local game = {
     food = {},
     timer = 0,
     move_delay = 0.15,
+    base_move_delay = 0.15, -- Store original speed for level calculations
     score = 0,
+    level = 1,
     over = false,
     arrowHoldTime = 0,
     state = "menu",
@@ -17,7 +19,8 @@ local game = {
     nameEntry = {
         active = false,
         name = "AAA",
-        position = 1
+        position = 1,
+        pendingChoice = nil -- "newGame" or "exit" - remembers choice before name entry
     },
     mouseX = 0,
     mouseY = 0,
@@ -50,13 +53,25 @@ function game.loadAssets()
     }
 end
 
+function game.getCurrentLevel()
+    return math.floor(game.score / 25) + 1
+end
+
+function game.updateLevelAndSpeed()
+    game.level = game.getCurrentLevel()
+    -- Linear speed increase: 5% faster per level
+    game.move_delay = game.base_move_delay * (1 - (game.level - 1) * 0.05)
+end
+
 function game.reset()
     game.snake = {{x = 10, y = 10}}
     game.direction = {x = 1, y = 0}
     game.pendingDirection = {x = 1, y = 0}
     game.food = {}
     game.timer = 0
+    game.move_delay = game.base_move_delay -- Reset to base speed
     game.score = 0
+    game.level = 1
     game.over = false
     game.deathSoundPlayed = false
     game.arrowHoldTime = 0
@@ -65,7 +80,8 @@ function game.reset()
     game.nameEntry = {
         active = false,
         name = "AAA",
-        position = 1
+        position = 1,
+        pendingChoice = nil
     }
     game.mouseX = 0
     game.mouseY = 0
@@ -118,6 +134,9 @@ function game.moveSnake()
         else
             game.score = game.score + 1
         end
+
+        -- Update level and speed based on new score
+        game.updateLevelAndSpeed()
 
         -- After eating food, spawn special food if score is a multiple of 10; else spawn normal food.
         if game.score % 10 == 0 then

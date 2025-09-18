@@ -44,11 +44,23 @@ function gameOver.draw(game, settings, highscores)
 
     -- Draw final score
     love.graphics.setFont(fonts.button)
+    love.graphics.setColor(0.2, 0.2, 0.2)
     local scoreMsg = string.format("FINAL SCORE: %04d", game.score)
     local scoreWidth = fonts.button:getWidth(scoreMsg)
     local scoreX = (love.graphics.getWidth() - scoreWidth) / 2
     local scoreY = y + fonts.title:getHeight() + 20
     love.graphics.print(scoreMsg, scoreX, scoreY)
+
+    -- Draw high score indicator if applicable
+    if highscores.isHighScore(game.score) then
+        local highScoreMsg = "NEW HIGH SCORE!"
+        local highScoreWidth = fonts.button:getWidth(highScoreMsg)
+        local highScoreX = (love.graphics.getWidth() - highScoreWidth) / 2
+        local highScoreY = scoreY + fonts.button:getHeight() + 10
+        love.graphics.setColor(0.75, 0.85, 0.65)  -- LCD green
+        love.graphics.print(highScoreMsg, highScoreX, highScoreY)
+        love.graphics.setColor(0.2, 0.2, 0.2)  -- Reset to dark color for buttons
+    end
 
     -- Initialize buttons if not already done
     if #buttons == 0 then
@@ -79,10 +91,11 @@ function gameOver.mousepressed(game, highscores, x, y, button)
                 stateManager:setSelection(i)
                 if i == 1 then
                     if highscores.isHighScore(game.score) then
-                        -- Initialize name entry
+                        -- Initialize name entry and remember choice
                         game.nameEntry.active = true
                         game.nameEntry.name = "AAA"
                         game.nameEntry.position = 1
+                        game.nameEntry.pendingChoice = "newGame"
                         if game.sounds and game.sounds.confirm then
                             game.sounds.confirm:stop()
                             game.sounds.confirm:play()
@@ -95,7 +108,19 @@ function gameOver.mousepressed(game, highscores, x, y, button)
                         end
                     end
                 elseif i == 2 then
-                    love.event.quit()
+                    if highscores.isHighScore(game.score) then
+                        -- Initialize name entry and remember choice
+                        game.nameEntry.active = true
+                        game.nameEntry.name = "AAA"
+                        game.nameEntry.position = 1
+                        game.nameEntry.pendingChoice = "exit"
+                        if game.sounds and game.sounds.confirm then
+                            game.sounds.confirm:stop()
+                            game.sounds.confirm:play()
+                        end
+                    else
+                        love.event.quit()
+                    end
                 end
                 break
             end
@@ -120,10 +145,11 @@ function gameOver.keypressed(game, highscores, key)
         local selection = stateManager:getSelection()
         if selection == 1 then
             if highscores.isHighScore(game.score) then
-                -- Initialize name entry
+                -- Initialize name entry and remember choice
                 game.nameEntry.active = true
                 game.nameEntry.name = "AAA"
                 game.nameEntry.position = 1
+                game.nameEntry.pendingChoice = "newGame"
                 if game.sounds and game.sounds.confirm then
                     game.sounds.confirm:stop()
                     game.sounds.confirm:play()
@@ -136,7 +162,19 @@ function gameOver.keypressed(game, highscores, key)
                 end
             end
         elseif selection == 2 then
-            love.event.quit()
+            if highscores.isHighScore(game.score) then
+                -- Initialize name entry and remember choice
+                game.nameEntry.active = true
+                game.nameEntry.name = "AAA"
+                game.nameEntry.position = 1
+                game.nameEntry.pendingChoice = "exit"
+                if game.sounds and game.sounds.confirm then
+                    game.sounds.confirm:stop()
+                    game.sounds.confirm:play()
+                end
+            else
+                love.event.quit()
+            end
         end
     elseif key == "escape" or key == "q" then
         if game.sounds and game.sounds.back then

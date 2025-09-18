@@ -144,7 +144,18 @@ function nameEntry.keypressed(game, key)
         -- Submit the name
         highscores.add(game.nameEntry.name, game.score)
         game.nameEntry.active = false
-        game.state = "menu"  -- Go back to the menu
+
+        -- Handle pending choice from game over screen
+        if game.nameEntry.pendingChoice == "newGame" then
+            game.reset()
+        elseif game.nameEntry.pendingChoice == "exit" then
+            love.event.quit()
+        else
+            game.state = "menu"  -- Fallback to menu
+        end
+
+        game.nameEntry.pendingChoice = nil  -- Reset the pending choice
+
         if game.sounds and game.sounds.confirm then
             game.sounds.confirm:stop()
             game.sounds.confirm:play()
@@ -186,7 +197,18 @@ function nameEntry.mousepressed(game, x, y)
         -- Submit the name
         highscores.add(game.nameEntry.name, game.score)
         game.nameEntry.active = false
-        game.state = "menu"
+
+        -- Handle pending choice from game over screen
+        if game.nameEntry.pendingChoice == "newGame" then
+            game.reset()
+        elseif game.nameEntry.pendingChoice == "exit" then
+            love.event.quit()
+        else
+            game.state = "menu"  -- Fallback to menu
+        end
+
+        game.nameEntry.pendingChoice = nil  -- Reset the pending choice
+
         if game.sounds and game.sounds.confirm then
             game.sounds.confirm:stop()
             game.sounds.confirm:play()
